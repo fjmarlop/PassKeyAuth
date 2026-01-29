@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="passkeyauth_error_generic">Error de autenticacion</string>
+    <string name="passkeyauth_error_no_biometric">Biometria no disponible</string>
+</resources>

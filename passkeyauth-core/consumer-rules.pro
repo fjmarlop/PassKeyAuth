@@ -1,0 +1,1 @@
+-keep public class es.fjmarlop.corpsecauth.core.PasskeyAuth { *; }

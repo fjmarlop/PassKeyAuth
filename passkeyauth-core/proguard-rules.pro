@@ -1,0 +1,7 @@
+-keep public class es.fjmarlop.corpsecauth.core.PasskeyAuth { *; }
+-keep public class es.fjmarlop.corpsecauth.core.models.** { *; }
+-keep public class es.fjmarlop.corpsecauth.core.errors.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}

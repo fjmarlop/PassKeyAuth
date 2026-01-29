@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="enrollment_title">Configurar Autenticacion</string>
+    <string name="biometric_prompt_title">Verificacion Biometrica</string>
+</resources>

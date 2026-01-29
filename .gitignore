@@ -1,0 +1,60 @@
+# ============================================
+# PasskeyAuth - Android Security SDK
+# ============================================
+
+# === CRÍTICO DE SEGURIDAD ===
+# Archivos con credenciales/claves privadas
+google-services.json
+sample/google-services.json
+local.properties
+*.jks
+*.keystore
+secrets.properties
+key.properties
+*.p12
+*.pem
+
+# === Android Studio ===
+*.iml
+.idea/
+.gradle/
+.DS_Store
+*.swp
+*~
+*.bak
+
+# === Build Outputs ===
+*.apk
+*.aab
+*.aar
+*.dex
+*.class
+bin/
+gen/
+out/
+build/
+*/build/
+passkeyauth-core/build/
+passkeyauth-ui/build/
+sample/build/
+
+# === NDK ===
+.externalNativeBuild
+.cxx/
+obj/
+
+# === Logs y Debugging ===
+*.log
+firebase-debug.log
+firestore-debug.log
+/captures
+
+# === OS Specific ===
+.DS_Store           # macOS
+Thumbs.db           # Windows
+ehthumbs.db
+Desktop.ini
+
+# === Otros ===
+proguard/
+lint/
