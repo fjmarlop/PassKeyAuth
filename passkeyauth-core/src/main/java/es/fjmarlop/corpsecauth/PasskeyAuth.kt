@@ -8,8 +8,10 @@ import es.fjmarlop.corpsecauth.core.crypto.EncryptedData
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.enrollment.EnrollmentManager
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
-import es.fjmarlop.corpsecauth.core.firebase.DeviceBindingManager
-import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthManager
+import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
+import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
+import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthBackend
+import es.fjmarlop.corpsecauth.core.firebase.PasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.models.AuthResult
 import es.fjmarlop.corpsecauth.core.models.AuthUser
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
@@ -32,10 +34,15 @@ object PasskeyAuth {
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    private val firebaseAuthManager: FirebaseAuthManager by lazy { 
-        FirebaseAuthManager.createDefault() 
+    // Composicion root: una sola instancia Firebase sirve ambas capabilities
+    // (autenticacion y gestion de password). Se expone como dos getters tipados
+    // a las interfaces correspondientes (ver ADR-010 Path C).
+    private val firebaseAuthBackend: FirebaseAuthBackend by lazy {
+        FirebaseAuthBackend.createDefault()
     }
-    
+    private val authBackend: AuthBackend get() = firebaseAuthBackend
+    private val passwordManagement: PasswordManagementBackend get() = firebaseAuthBackend
+
     private val keyStoreManager: KeyStoreManager by lazy {
         val cfg = config ?: PasskeyAuthConfig.Default
         if (cfg.requireStrongBox) {
@@ -44,17 +51,17 @@ object PasskeyAuth {
             KeyStoreManager.createDefault()
         }
     }
-    
+
     private val cryptoProvider: CryptoProvider by lazy {
         CryptoProvider.createWithKeyStore(keyStoreManager)
     }
-    
+
     private val secureStorage: SecureStorage by lazy {
         SecureStorage.create(requireContext())
     }
-    
-    private val deviceBindingManager: DeviceBindingManager by lazy {
-        DeviceBindingManager.create(requireContext())
+
+    private val deviceRegistry: DeviceRegistry by lazy {
+        DeviceRegistry.create(requireContext())
     }
 
     private var lastActivityTimestamp: Long = System.currentTimeMillis()
@@ -105,10 +112,11 @@ object PasskeyAuth {
         val enrollmentManager = EnrollmentManager.createWithDependencies(
             context = requireContext(),
             activity = activity,
-            firebaseAuthManager = firebaseAuthManager,
+            authBackend = authBackend,
+            passwordManagement = passwordManagement,
             biometricAuthenticator = BiometricAuthenticator.create(activity),
             cryptoProvider = cryptoProvider,
-            deviceBindingManager = deviceBindingManager,
+            deviceRegistry = deviceRegistry,
             secureStorage = secureStorage,
             keyStoreManager = keyStoreManager
         )
@@ -163,14 +171,14 @@ object PasskeyAuth {
             val tokenBytes = cipher.doFinal(encryptedData.ciphertext)
             val token = String(tokenBytes, Charsets.UTF_8)
 
-            val currentUser = firebaseAuthManager.getCurrentUser()
+            val currentUser = authBackend.getCurrentUser()
                 ?: return Result.failure(
                     es.fjmarlop.corpsecauth.core.errors.FirebaseException.UserNotFound(
                         "Usuario no encontrado en Firebase"
                     )
                 )
 
-            val isDeviceValid = deviceBindingManager.validateDevice(currentUser.uid).getOrElse {
+            val isDeviceValid = deviceRegistry.validateDevice(currentUser.uid).getOrElse {
                 return Result.failure(it)
             }
 
@@ -209,7 +217,7 @@ object PasskeyAuth {
         scope.launch {
             try {
                 secureStorage.clearToken()
-                firebaseAuthManager.signOut()
+                authBackend.signOut()
                 _authState.value = AuthResult.Unauthenticated
                 
                 println("âœ… PasskeyAuth: Sesion cerrada")
@@ -228,14 +236,14 @@ object PasskeyAuth {
             val userId = secureStorage.loadUserId().getOrNull()
 
             if (userId != null) {
-                deviceBindingManager.revokeDevice(userId).onFailure { error ->
+                deviceRegistry.revokeDevice(userId).onFailure { error ->
                     println("âš ï¸ PasskeyAuth: Error revocando dispositivo: ${error.message}")
                 }
             }
 
             keyStoreManager.deleteKey()
             secureStorage.clear()
-            firebaseAuthManager.signOut()
+            authBackend.signOut()
 
             _authState.value = AuthResult.Unauthenticated
 
@@ -260,7 +268,7 @@ object PasskeyAuth {
 
     fun getCurrentUser(): AuthUser? {
         if (!isInitialized) return null
-        return firebaseAuthManager.getCurrentUser()
+        return authBackend.getCurrentUser()
     }
 
     fun isAuthenticated(): Boolean {
@@ -277,13 +285,13 @@ object PasskeyAuth {
                     return@launch
                 }
 
-                val currentUser = firebaseAuthManager.getCurrentUser()
+                val currentUser = authBackend.getCurrentUser()
                 if (currentUser == null) {
                     _authState.value = AuthResult.Unauthenticated
                     return@launch
                 }
 
-                val isDeviceValid = deviceBindingManager.validateDevice(currentUser.uid)
+                val isDeviceValid = deviceRegistry.validateDevice(currentUser.uid)
                     .getOrElse { false }
 
                 if (!isDeviceValid) {

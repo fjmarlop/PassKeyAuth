@@ -202,6 +202,11 @@ Toda decision importante debe documentarse en `docs/adr/`.
 - ADR-004: KeyStoreManager con AES-GCM y StrongBox
 - ADR-005: Sistema de logging configurable
 - ADR-006: EnrollmentManager transaccional con Flow
+- ADR-007: Requerimiento de FragmentActivity
+- ADR-008: Separacion Core/UI (eliminacion de SystemState)
+- ADR-009: Client-Side Security Responsibility
+- ADR-010: Internal Abstractions for Testability and Backend Independence
+- ADR-011: Testing Stack and Infrastructure (JUnit 4 + MockK + Truth + Turbine + JaCoCo)
 
 ## Seguridad
 
