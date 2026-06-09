@@ -7,22 +7,24 @@ import es.fjmarlop.corpsecauth.core.crypto.CryptoProvider
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.errors.EnrollmentException
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
-import es.fjmarlop.corpsecauth.core.firebase.DeviceBindingManager
-import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthManager
+import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
+import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
+import es.fjmarlop.corpsecauth.core.firebase.PasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
+import es.fjmarlop.corpsecauth.core.models.Credentials
 import es.fjmarlop.corpsecauth.core.models.EnrollmentState
 import es.fjmarlop.corpsecauth.core.storage.SecureStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.tasks.await
 
 internal class EnrollmentManager private constructor(
     private val context: Context,
     private val activity: FragmentActivity,
-    private val firebaseAuthManager: FirebaseAuthManager,
+    private val authBackend: AuthBackend,
+    private val passwordManagement: PasswordManagementBackend,
     private val biometricAuthenticator: BiometricAuthenticator,
     private val cryptoProvider: CryptoProvider,
-    private val deviceBindingManager: DeviceBindingManager,
+    private val deviceRegistry: DeviceRegistry,
     private val secureStorage: SecureStorage,
     private val keyStoreManager: KeyStoreManager
 ) {
@@ -34,41 +36,41 @@ internal class EnrollmentManager private constructor(
         try {
             emit(EnrollmentState.Idle)
 
-            // PASO 1
+            // PASO 1: Validar credenciales (login + obtener ID token, atomico)
             println("🔐 EnrollmentManager: Paso 1 - Validando credenciales")
             emit(EnrollmentState.ValidatingCredentials(email))
 
-            val firebaseUser = firebaseAuthManager.loginWithTemporaryCredentials(
-                email = email,
-                temporaryPassword = temporaryPassword
+            val session = authBackend.authenticate(
+                Credentials.EmailPassword(email = email, password = temporaryPassword)
             ).getOrElse { error ->
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
 
-            // PASO 2
-            /** TODO  Paso 2 comentado para no cambiar constantemente la contraseña para pruebas **/
+            // PASO 2: Invalidar password temporal (passwordless real)
+            /** TODO Paso 2 comentado para no cambiar constantemente la contraseña para pruebas **/
             /*
             println("🔐 EnrollmentManager: Paso 2 - Invalidando password temporal")
             emit(EnrollmentState.RequiresPasswordChange(isTemporaryPassword = true))
 
-            firebaseAuthManager.invalidateTemporaryPassword().getOrElse { error ->
-                firebaseAuthManager.signOut()
+            passwordManagement.invalidateTemporaryPassword().getOrElse { error ->
+                authBackend.signOut()
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
             */
-            // PASO 3
+
+            // PASO 3: Generar clave en KeyStore
             println("🔐 EnrollmentManager: Paso 3 - Generando clave en KeyStore")
             emit(EnrollmentState.GeneratingCryptoKey)
 
             keyStoreManager.generateKey().getOrElse { error ->
-                firebaseAuthManager.signOut()
+                authBackend.signOut()
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
 
-            // PASO 4
+            // PASO 4: Autenticacion biometrica
             println("🔐 EnrollmentManager: Paso 4 - Esperando autenticacion biometrica")
             emit(EnrollmentState.AwaitingBiometric(BiometricConfig.Default))
 
@@ -76,55 +78,52 @@ internal class EnrollmentManager private constructor(
                 config = BiometricConfig.Default
             ).getOrElse { error ->
                 keyStoreManager.deleteKey()
-                firebaseAuthManager.signOut()
+                authBackend.signOut()
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
 
-            // PASO 5
+            // PASO 5: Cifrar token de sesion
             println("🔐 EnrollmentManager: Paso 5 - Cifrando token de sesion")
 
-            val token = firebaseUser.getIdToken(false).await()?.token ?: ""
+            val token = session.idToken
             val ciphertext = authenticatedCipher.doFinal(token.toByteArray(Charsets.UTF_8))
             val iv = authenticatedCipher.iv
 
-            val encryptedBase64 = android.util.Base64.encodeToString(
-                iv + ciphertext,
-                android.util.Base64.NO_WRAP
-            )
+            // Usamos java.util.Base64 (no android.util.Base64) para portabilidad JVM.
+            // Disponible desde API 26 = nuestro minSdk. Ver ADR-011.
+            val encryptedBase64 = java.util.Base64.getEncoder().encodeToString(iv + ciphertext)
 
-            // PASO 6
-            println("🔐 EnrollmentManager: Paso 6 - Vinculando dispositivo en Firestore")
+            // PASO 6: Vincular dispositivo en registry remoto
+            println("🔐 EnrollmentManager: Paso 6 - Vinculando dispositivo")
             emit(EnrollmentState.BindingDevice)
 
-            val deviceId = deviceBindingManager.bindDevice(firebaseUser.uid).getOrElse { error ->
+            val deviceId = deviceRegistry.bindDevice(session.user.uid).getOrElse { error ->
                 keyStoreManager.deleteKey()
                 secureStorage.clear()
-                firebaseAuthManager.signOut()
+                authBackend.signOut()
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
 
-            // PASO 7
+            // PASO 7: Guardar en storage local cifrado
             println("🔐 EnrollmentManager: Paso 7 - Guardando en storage local")
 
             secureStorage.saveEncryptedToken(encryptedBase64).getOrElse { error ->
                 keyStoreManager.deleteKey()
-                deviceBindingManager.revokeDevice(firebaseUser.uid)
-                firebaseAuthManager.signOut()
+                deviceRegistry.revokeDevice(session.user.uid)
+                authBackend.signOut()
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
 
             // saveUserId, saveDeviceId, saveLastActivityTimestamp son suspend pero NO retornan Result
-            secureStorage.saveUserId(firebaseUser.uid)
+            secureStorage.saveUserId(session.user.uid)
             secureStorage.saveDeviceId(deviceId)
             secureStorage.saveLastActivityTimestamp(System.currentTimeMillis())
 
             println("✅ EnrollmentManager: Enrollment completado exitosamente")
-
-            val authUser = firebaseAuthManager.getCurrentUser()!!
-            emit(EnrollmentState.Success(authUser))
+            emit(EnrollmentState.Success(session.user))
 
         } catch (e: Exception) {
             println("❌ EnrollmentManager: Error inesperado: ${e.message}")
@@ -165,12 +164,12 @@ internal class EnrollmentManager private constructor(
             val userId = secureStorage.loadUserId().getOrNull()
 
             if (userId != null) {
-                deviceBindingManager.revokeDevice(userId)
+                deviceRegistry.revokeDevice(userId)
             }
 
             keyStoreManager.deleteKey()
             secureStorage.clear()
-            firebaseAuthManager.signOut()
+            authBackend.signOut()
 
             println("✅ EnrollmentManager: Enrollment eliminado")
             Result.success(Unit)
@@ -194,16 +193,17 @@ internal class EnrollmentManager private constructor(
         fun createWithDependencies(
             context: Context,
             activity: FragmentActivity,
-            firebaseAuthManager: FirebaseAuthManager,
+            authBackend: AuthBackend,
+            passwordManagement: PasswordManagementBackend,
             biometricAuthenticator: BiometricAuthenticator,
             cryptoProvider: CryptoProvider,
-            deviceBindingManager: DeviceBindingManager,
+            deviceRegistry: DeviceRegistry,
             secureStorage: SecureStorage,
             keyStoreManager: KeyStoreManager
         ): EnrollmentManager {
             return EnrollmentManager(
-                context, activity, firebaseAuthManager, biometricAuthenticator,
-                cryptoProvider, deviceBindingManager, secureStorage, keyStoreManager
+                context, activity, authBackend, passwordManagement, biometricAuthenticator,
+                cryptoProvider, deviceRegistry, secureStorage, keyStoreManager
             )
         }
     }

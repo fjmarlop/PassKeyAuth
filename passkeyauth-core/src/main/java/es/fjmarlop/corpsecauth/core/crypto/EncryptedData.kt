@@ -1,12 +1,16 @@
 package es.fjmarlop.corpsecauth.core.crypto
 
-import android.util.Base64
+import java.util.Base64
 
 /**
  * Modelo para datos cifrados con AES-GCM.
  *
  * Contiene el ciphertext (datos cifrados) y el IV (initialization vector)
  * necesario para descifrar.
+ *
+ * NOTA: Usa [java.util.Base64] (disponible desde Java 8 / API 26+) en lugar de
+ * [android.util.Base64] para que la clase sea portable a JVM puro (facilita
+ * testing sin Android runtime). Ver ADR-011.
  *
  * @property ciphertext Datos cifrados
  * @property iv Initialization Vector (12 bytes para GCM)
@@ -18,11 +22,12 @@ data class EncryptedData(
     /**
      * Convierte a Base64 para almacenamiento.
      *
-     * Formato: IV + ciphertext concatenados y codificados en Base64
+     * Formato: IV + ciphertext concatenados y codificados en Base64 (sin newlines,
+     * equivalente al antiguo `android.util.Base64.NO_WRAP`).
      */
     fun toBase64String(): String {
         val combined = iv + ciphertext
-        return Base64.encodeToString(combined, Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(combined)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -54,8 +59,8 @@ data class EncryptedData(
          */
         fun fromBase64String(base64String: String): EncryptedData? {
             return try {
-                val combined = Base64.decode(base64String, Base64.NO_WRAP)
-                
+                val combined = Base64.getDecoder().decode(base64String)
+
                 if (combined.size < GCM_IV_LENGTH) {
                     return null
                 }

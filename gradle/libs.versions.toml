@@ -34,6 +34,9 @@ junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 mockk = "1.13.13"
 turbine = "1.2.0"
+truth = "1.4.4"
+robolectric = "4.14"
+jacoco = "0.8.12"
 
 [libraries]
 # AndroidX Core
@@ -94,6 +97,8 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 
 [bundles]
 compose = [
@@ -118,13 +123,26 @@ testing-unit = [
     "junit",
     "mockk",
     "kotlinx-coroutines-test",
-    "turbine"
+    "turbine",
+    "truth"
+]
+
+# Para tests que requieren Context/DataStore pero no hardware real (ej. SecureStorage).
+# NO usar para crypto/biometric — ver ADR-004 y ADR-011.
+
+testing-robolectric = [
+    "junit",
+    "robolectric",
+    "truth",
+    "kotlinx-coroutines-test",
+    "mockk"
 ]
 
 testing-android = [
     "androidx-junit",
     "androidx-espresso-core",
-    "mockk-android"
+    "mockk-android",
+    "truth"
 ]
 
 [plugins]

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "project_name": "CorpSecAuth",
+  "project_type": "android",
+  "platforms": [
+    "android"
+  ],
+  "build_systems": [
+    "gradle"
+  ],
+  "ui": [
+    "compose"
+  ],
+  "di": [],
+  "network": [],
+  "persistence": [
+    "datastore"
+  ],
+  "serialization": [],
+  "testing": [
+    "espresso",
+    "mockk",
+    "turbine"
+  ],
+  "integrations": [
+    "firebase"
+  ],
+  "ci_cd": [],
+  "detected_files": {
+    "android_manifest": "passkeyauth-ui/src/main/AndroidManifest.xml",
+    "settings_gradle": "settings.gradle.kts"
+  },
+  "warnings": [
+    "sensitive file detected: sample/google-services.json (not read)"
+  ],
+  "created_at": "2026-05-31T16:12:41Z",
+  "updated_at": "2026-05-31T16:12:41Z"
+}

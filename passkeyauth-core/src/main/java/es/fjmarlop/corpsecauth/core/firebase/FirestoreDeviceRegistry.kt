@@ -9,10 +9,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-internal class DeviceBindingManager(
+/**
+ * Implementacion Firestore de [DeviceRegistry].
+ *
+ * Persiste el binding usuario→dispositivo en:
+ * `devices/{userId}/history/current`
+ *
+ * El campo `isActive` permite soft delete (revocacion) preservando historial
+ * para auditoria.
+ *
+ * Para tests JVM, usar `InMemoryDeviceRegistry` (src/test/).
+ */
+internal class FirestoreDeviceRegistry(
     private val context: Context,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
-) {
+) : DeviceRegistry {
 
     private val devicesCollection = "devices"
     private val currentDeviceDoc = "current"
@@ -30,13 +41,13 @@ internal class DeviceBindingManager(
         }
     }
 
-    suspend fun bindDevice(userId: String): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun bindDevice(userId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            println("🔗 DeviceBindingManager: Vinculando dispositivo para user: $userId")
+            println("🔗 FirestoreDeviceRegistry: Vinculando dispositivo para user: $userId")
 
             val deviceId = getDeviceId()
             val appVersion = getAppVersion()
-            
+
             val deviceInfo = DeviceInfo(
                 deviceId = deviceId,
                 appVersion = appVersion
@@ -52,20 +63,20 @@ internal class DeviceBindingManager(
                 .set(deviceData)
                 .await()
 
-            println("✅ DeviceBindingManager: Dispositivo vinculado (deviceId: $deviceId)")
+            println("✅ FirestoreDeviceRegistry: Dispositivo vinculado (deviceId: $deviceId)")
             Result.success(deviceId)
 
         } catch (e: Exception) {
-            println("❌ DeviceBindingManager: Error vinculando dispositivo: ${e.message}")
+            println("❌ FirestoreDeviceRegistry: Error vinculando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.BindingFailed("Error vinculando dispositivo", e)
             )
         }
     }
 
-    suspend fun validateDevice(userId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    override suspend fun validateDevice(userId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            println("🔍 DeviceBindingManager: Validando dispositivo para user: $userId")
+            println("🔍 FirestoreDeviceRegistry: Validando dispositivo para user: $userId")
 
             val currentDeviceId = getDeviceId()
 
@@ -77,7 +88,7 @@ internal class DeviceBindingManager(
                 .await()
 
             if (!snapshot.exists()) {
-                println("⚠️ DeviceBindingManager: Dispositivo no registrado")
+                println("⚠️ FirestoreDeviceRegistry: Dispositivo no registrado")
                 return@withContext Result.success(false)
             }
 
@@ -87,24 +98,24 @@ internal class DeviceBindingManager(
             val isValid = (registeredDeviceId == currentDeviceId) && isActive
 
             if (isValid) {
-                println("✅ DeviceBindingManager: Dispositivo valido")
+                println("✅ FirestoreDeviceRegistry: Dispositivo valido")
             } else {
-                println("🚨 DeviceBindingManager: Dispositivo NO valido (deviceId: $currentDeviceId, registrado: $registeredDeviceId, active: $isActive)")
+                println("🚨 FirestoreDeviceRegistry: Dispositivo NO valido (actual: $currentDeviceId, registrado: $registeredDeviceId, active: $isActive)")
             }
 
             Result.success(isValid)
 
         } catch (e: Exception) {
-            println("❌ DeviceBindingManager: Error validando dispositivo: ${e.message}")
+            println("❌ FirestoreDeviceRegistry: Error validando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.ValidationFailed("Error validando dispositivo", e)
             )
         }
     }
 
-    suspend fun revokeDevice(userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun revokeDevice(userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("🗑️ DeviceBindingManager: Revocando dispositivo para user: $userId")
+            println("🗑️ FirestoreDeviceRegistry: Revocando dispositivo para user: $userId")
 
             firestore.collection(devicesCollection)
                 .document(userId)
@@ -113,18 +124,18 @@ internal class DeviceBindingManager(
                 .update("isActive", false)
                 .await()
 
-            println("✅ DeviceBindingManager: Dispositivo revocado")
-            Result.success(Unit)  // ← FIX: Unit, no deviceId
+            println("✅ FirestoreDeviceRegistry: Dispositivo revocado")
+            Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ DeviceBindingManager: Error revocando dispositivo: ${e.message}")
+            println("❌ FirestoreDeviceRegistry: Error revocando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.BindingFailed("Error revocando dispositivo", e)
             )
         }
     }
 
-    suspend fun getDeviceInfo(userId: String): Result<DeviceInfo?> = withContext(Dispatchers.IO) {
+    override suspend fun getDeviceInfo(userId: String): Result<DeviceInfo?> = withContext(Dispatchers.IO) {
         try {
             val snapshot = firestore.collection(devicesCollection)
                 .document(userId)
@@ -141,7 +152,7 @@ internal class DeviceBindingManager(
             Result.success(deviceInfo)
 
         } catch (e: Exception) {
-            println("❌ DeviceBindingManager: Error obteniendo info: ${e.message}")
+            println("❌ FirestoreDeviceRegistry: Error obteniendo info: ${e.message}")
             Result.failure(
                 DeviceException.ValidationFailed("Error obteniendo informacion del dispositivo", e)
             )
@@ -149,11 +160,14 @@ internal class DeviceBindingManager(
     }
 
     companion object {
-        fun create(context: Context) = DeviceBindingManager(context)
+        fun create(context: Context): FirestoreDeviceRegistry = FirestoreDeviceRegistry(context)
 
+        /**
+         * Crea instancia con Firestore custom (testing con Firebase emulator).
+         */
         fun createWithFirestore(
             context: Context,
             firestore: FirebaseFirestore
-        ) = DeviceBindingManager(context, firestore)
+        ): FirestoreDeviceRegistry = FirestoreDeviceRegistry(context, firestore)
     }
 }

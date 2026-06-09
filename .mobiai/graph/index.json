@@ -1,0 +1,1863 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-31T16:12:06.0235204Z",
+  "root": "D:\\proyectos\\CorpSecAuth",
+  "files": [
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/PasskeyAuth.kt",
+      "language": "kotlin",
+      "lines": 388,
+      "imports": [
+        "android.content.Context",
+        "androidx.fragment.app.FragmentActivity",
+        "es.fjmarlop.corpsecauth.core.auth.BiometricAuthenticator",
+        "es.fjmarlop.corpsecauth.core.crypto.CryptoProvider",
+        "es.fjmarlop.corpsecauth.core.crypto.EncryptedData",
+        "es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager",
+        "es.fjmarlop.corpsecauth.core.enrollment.EnrollmentManager",
+        "es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException",
+        "es.fjmarlop.corpsecauth.core.firebase.DeviceBindingManager",
+        "es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthManager",
+        "es.fjmarlop.corpsecauth.core.models.AuthResult",
+        "es.fjmarlop.corpsecauth.core.models.AuthUser",
+        "es.fjmarlop.corpsecauth.core.models.BiometricConfig",
+        "es.fjmarlop.corpsecauth.core.models.EnrollmentState",
+        "es.fjmarlop.corpsecauth.core.storage.SecureStorage",
+        "kotlinx.coroutines.CoroutineScope",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.SupervisorJob",
+        "kotlinx.coroutines.flow.Flow",
+        "kotlinx.coroutines.flow.MutableStateFlow",
+        "kotlinx.coroutines.flow.StateFlow",
+        "kotlinx.coroutines.flow.asStateFlow",
+        "kotlinx.coroutines.launch"
+      ],
+      "symbols": [
+        {
+          "name": "PasskeyAuth",
+          "kind": "object",
+          "line": 27
+        },
+        {
+          "name": "initialize",
+          "kind": "fun",
+          "line": 67,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "enrollDevice",
+          "kind": "fun",
+          "line": 98,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "authenticate",
+          "kind": "fun",
+          "line": 122,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "logout",
+          "kind": "fun",
+          "line": 206,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "unenrollDevice",
+          "kind": "fun",
+          "line": 222,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "isDeviceEnrolled",
+          "kind": "fun",
+          "line": 251,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "getCurrentUser",
+          "kind": "fun",
+          "line": 261,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "isAuthenticated",
+          "kind": "fun",
+          "line": 266,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "refreshAuthState",
+          "kind": "fun",
+          "line": 270,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "onAppBackground",
+          "kind": "fun",
+          "line": 309,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "onAppForeground",
+          "kind": "fun",
+          "line": 315,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "invalidateSession",
+          "kind": "fun",
+          "line": 353,
+          "container": "PasskeyAuth"
+        },
+        {
+          "name": "wrapToPasskeyAuthException",
+          "kind": "fun",
+          "line": 358,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "requireInitialized",
+          "kind": "fun",
+          "line": 368,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "requireContext",
+          "kind": "fun",
+          "line": 376,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "reset",
+          "kind": "fun",
+          "line": 382,
+          "container": "PasskeyAuth",
+          "modifiers": [
+            "internal"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/PasskeyAuthConfig.kt",
+      "language": "kotlin",
+      "lines": 89,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "PasskeyAuthConfig",
+          "kind": "class",
+          "line": 15,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "Default",
+          "kind": "object",
+          "line": 28
+        },
+        {
+          "name": "Debug",
+          "kind": "object",
+          "line": 41
+        },
+        {
+          "name": "Custom",
+          "kind": "class",
+          "line": 85
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/auth/BiometricAuthenticator.kt",
+      "language": "kotlin",
+      "lines": 376,
+      "imports": [
+        "android.os.Build",
+        "android.os.Handler",
+        "android.os.Looper",
+        "androidx.biometric.BiometricManager",
+        "androidx.biometric.BiometricPrompt",
+        "androidx.core.content.ContextCompat",
+        "androidx.fragment.app.FragmentActivity",
+        "es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager",
+        "es.fjmarlop.corpsecauth.core.errors.BiometricException",
+        "es.fjmarlop.corpsecauth.core.models.BiometricConfig",
+        "kotlinx.coroutines.suspendCancellableCoroutine",
+        "java.util.concurrent.Executor",
+        "javax.crypto.Cipher",
+        "kotlin.coroutines.resume"
+      ],
+      "symbols": [
+        {
+          "name": "BiometricAuthenticator",
+          "kind": "class",
+          "line": 50,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "validateBiometricCapabilities",
+          "kind": "fun",
+          "line": 72
+        },
+        {
+          "name": "authenticateForEncryption",
+          "kind": "fun",
+          "line": 147,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "authenticateForDecryption",
+          "kind": "fun",
+          "line": 186,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "authenticateWithBiometric",
+          "kind": "fun",
+          "line": 225,
+          "modifiers": [
+            "private",
+            "suspend"
+          ]
+        },
+        {
+          "name": "onAuthenticationSucceeded",
+          "kind": "fun",
+          "line": 244,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "onAuthenticationError",
+          "kind": "fun",
+          "line": 262,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "onAuthenticationFailed",
+          "kind": "fun",
+          "line": 300,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "deleteKey",
+          "kind": "fun",
+          "line": 337,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "hasKey",
+          "kind": "fun",
+          "line": 344
+        },
+        {
+          "name": "MainThreadExecutor",
+          "kind": "class",
+          "line": 352,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "execute",
+          "kind": "fun",
+          "line": 355,
+          "container": "MainThreadExecutor",
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "create",
+          "kind": "fun",
+          "line": 364
+        },
+        {
+          "name": "createWithKeyStore",
+          "kind": "fun",
+          "line": 371
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/crypto/CryptoProvider.kt",
+      "language": "kotlin",
+      "lines": 214,
+      "imports": [
+        "es.fjmarlop.corpsecauth.core.errors.CryptoException",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.withContext",
+        "javax.crypto.Cipher"
+      ],
+      "symbols": [
+        {
+          "name": "CryptoProvider",
+          "kind": "class",
+          "line": 31,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "encrypt",
+          "kind": "fun",
+          "line": 49,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "decrypt",
+          "kind": "fun",
+          "line": 103,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "encryptToBase64",
+          "kind": "fun",
+          "line": 160,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "decryptFromBase64",
+          "kind": "fun",
+          "line": 172,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "hasKey",
+          "kind": "fun",
+          "line": 186
+        },
+        {
+          "name": "deleteKey",
+          "kind": "fun",
+          "line": 197,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "createDefault",
+          "kind": "fun",
+          "line": 205
+        },
+        {
+          "name": "createWithKeyStore",
+          "kind": "fun",
+          "line": 212
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/crypto/EncryptedData.kt",
+      "language": "kotlin",
+      "lines": 72,
+      "imports": [
+        "android.util.Base64"
+      ],
+      "symbols": [
+        {
+          "name": "EncryptedData",
+          "kind": "class",
+          "line": 14,
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "toBase64String",
+          "kind": "fun",
+          "line": 23
+        },
+        {
+          "name": "equals",
+          "kind": "fun",
+          "line": 28,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "hashCode",
+          "kind": "fun",
+          "line": 40,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "fromBase64String",
+          "kind": "fun",
+          "line": 55
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/crypto/KeyStoreManager.kt",
+      "language": "kotlin",
+      "lines": 361,
+      "imports": [
+        "android.os.Build",
+        "android.security.keystore.KeyGenParameterSpec",
+        "android.security.keystore.KeyProperties",
+        "es.fjmarlop.corpsecauth.core.errors.CryptoException",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.withContext",
+        "java.security.KeyStore",
+        "javax.crypto.Cipher",
+        "javax.crypto.KeyGenerator",
+        "javax.crypto.SecretKey"
+      ],
+      "symbols": [
+        {
+          "name": "KeyStoreManager",
+          "kind": "class",
+          "line": 31,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "generateKey",
+          "kind": "fun",
+          "line": 51,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "generateKeyWithStrongBox",
+          "kind": "fun",
+          "line": 110,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "generateKeyWithTEE",
+          "kind": "fun",
+          "line": 164,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "getKey",
+          "kind": "fun",
+          "line": 208,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "getOrCreateKey",
+          "kind": "fun",
+          "line": 230,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "getEncryptCipher",
+          "kind": "fun",
+          "line": 246,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "getDecryptCipher",
+          "kind": "fun",
+          "line": 271,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "deleteKey",
+          "kind": "fun",
+          "line": 298,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "hasKey",
+          "kind": "fun",
+          "line": 317
+        },
+        {
+          "name": "createDefault",
+          "kind": "fun",
+          "line": 332
+        },
+        {
+          "name": "createWithTimeout",
+          "kind": "fun",
+          "line": 345
+        },
+        {
+          "name": "createWithStrongBox",
+          "kind": "fun",
+          "line": 356
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/enrollment/EnrollmentManager.kt",
+      "language": "kotlin",
+      "lines": 210,
+      "imports": [
+        "android.content.Context",
+        "androidx.fragment.app.FragmentActivity",
+        "es.fjmarlop.corpsecauth.core.auth.BiometricAuthenticator",
+        "es.fjmarlop.corpsecauth.core.crypto.CryptoProvider",
+        "es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager",
+        "es.fjmarlop.corpsecauth.core.errors.EnrollmentException",
+        "es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException",
+        "es.fjmarlop.corpsecauth.core.firebase.DeviceBindingManager",
+        "es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthManager",
+        "es.fjmarlop.corpsecauth.core.models.BiometricConfig",
+        "es.fjmarlop.corpsecauth.core.models.EnrollmentState",
+        "es.fjmarlop.corpsecauth.core.storage.SecureStorage",
+        "kotlinx.coroutines.flow.Flow",
+        "kotlinx.coroutines.flow.flow",
+        "kotlinx.coroutines.tasks.await"
+      ],
+      "symbols": [
+        {
+          "name": "EnrollmentManager",
+          "kind": "class",
+          "line": 19,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "enrollDevice",
+          "kind": "fun",
+          "line": 30
+        },
+        {
+          "name": "isDeviceEnrolled",
+          "kind": "fun",
+          "line": 135,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "validateEnrollment",
+          "kind": "fun",
+          "line": 142,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "unenrollDevice",
+          "kind": "fun",
+          "line": 162,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "wrapException",
+          "kind": "fun",
+          "line": 183,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "createWithDependencies",
+          "kind": "fun",
+          "line": 194
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/BiometricException.kt",
+      "language": "kotlin",
+      "lines": 115,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "BiometricException",
+          "kind": "class",
+          "line": 9,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "HardwareNotAvailable",
+          "kind": "class",
+          "line": 19
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 23,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "HardwareUnavailable",
+          "kind": "class",
+          "line": 34
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 38,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "NoneEnrolled",
+          "kind": "class",
+          "line": 46
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 50,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "AuthenticationFailed",
+          "kind": "class",
+          "line": 62
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 66,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "UserCancelled",
+          "kind": "class",
+          "line": 75
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 79,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "CryptoError",
+          "kind": "class",
+          "line": 88
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 93,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "SecurityUpdateRequired",
+          "kind": "class",
+          "line": 99
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 103,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "Timeout",
+          "kind": "class",
+          "line": 109
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 113,
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/CryptoException.kt",
+      "language": "kotlin",
+      "lines": 63,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "CryptoException",
+          "kind": "class",
+          "line": 6,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "KeyGenerationFailed",
+          "kind": "class",
+          "line": 14
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 19,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "KeyNotFound",
+          "kind": "class",
+          "line": 25
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 29,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "EncryptionFailed",
+          "kind": "class",
+          "line": 35
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 40,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "DecryptionFailed",
+          "kind": "class",
+          "line": 46
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 51,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "StrongBoxNotAvailable",
+          "kind": "class",
+          "line": 57
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 61,
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/DeviceException.kt",
+      "language": "kotlin",
+      "lines": 56,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "DeviceException",
+          "kind": "class",
+          "line": 6,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "NotEnrolled",
+          "kind": "class",
+          "line": 14
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 18,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "Revoked",
+          "kind": "class",
+          "line": 27
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 31,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "BindingFailed",
+          "kind": "class",
+          "line": 38
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 43,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "ValidationFailed",
+          "kind": "class",
+          "line": 49
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 54,
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/EnrollmentException.kt",
+      "language": "kotlin",
+      "lines": 41,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "EnrollmentException",
+          "kind": "class",
+          "line": 6,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "EnrollmentFailed",
+          "kind": "class",
+          "line": 14
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 19,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "EnrollmentCancelled",
+          "kind": "class",
+          "line": 25
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 29,
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "AlreadyEnrolled",
+          "kind": "class",
+          "line": 35
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 39,
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/FirebaseException.kt",
+      "language": "kotlin",
+      "lines": 34,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "FirebaseException",
+          "kind": "class",
+          "line": 6,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "UserNotFound",
+          "kind": "class",
+          "line": 21
+        },
+        {
+          "name": "InvalidCredentials",
+          "kind": "class",
+          "line": 23
+        },
+        {
+          "name": "AuthenticationFailed",
+          "kind": "class",
+          "line": 25
+        },
+        {
+          "name": "PasswordChangeFailed",
+          "kind": "class",
+          "line": 27
+        },
+        {
+          "name": "NetworkError",
+          "kind": "class",
+          "line": 29
+        },
+        {
+          "name": "DeviceAlreadyBound",
+          "kind": "class",
+          "line": 31
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/errors/PasskeyAuthException.kt",
+      "language": "kotlin",
+      "lines": 29,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "PasskeyAuthException",
+          "kind": "class",
+          "line": 12,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "getUserMessage",
+          "kind": "fun",
+          "line": 23,
+          "modifiers": [
+            "open"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/firebase/DeviceBindingManager.kt",
+      "language": "kotlin",
+      "lines": 159,
+      "imports": [
+        "android.content.Context",
+        "android.provider.Settings",
+        "com.google.firebase.firestore.FirebaseFirestore",
+        "es.fjmarlop.corpsecauth.core.errors.DeviceException",
+        "es.fjmarlop.corpsecauth.core.models.DeviceInfo",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.tasks.await",
+        "kotlinx.coroutines.withContext"
+      ],
+      "symbols": [
+        {
+          "name": "DeviceBindingManager",
+          "kind": "class",
+          "line": 12,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "getDeviceId",
+          "kind": "fun",
+          "line": 20,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "getAppVersion",
+          "kind": "fun",
+          "line": 24,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "bindDevice",
+          "kind": "fun",
+          "line": 33,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "validateDevice",
+          "kind": "fun",
+          "line": 66,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "revokeDevice",
+          "kind": "fun",
+          "line": 105,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "getDeviceInfo",
+          "kind": "fun",
+          "line": 127,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "create",
+          "kind": "fun",
+          "line": 152
+        },
+        {
+          "name": "createWithFirestore",
+          "kind": "fun",
+          "line": 154
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/firebase/FirebaseAuthManager.kt",
+      "language": "kotlin",
+      "lines": 173,
+      "imports": [
+        "com.google.firebase.auth.EmailAuthProvider",
+        "com.google.firebase.auth.FirebaseAuth",
+        "com.google.firebase.auth.FirebaseAuthInvalidCredentialsException",
+        "com.google.firebase.auth.FirebaseAuthInvalidUserException",
+        "com.google.firebase.auth.FirebaseUser",
+        "es.fjmarlop.corpsecauth.core.errors.FirebaseException",
+        "es.fjmarlop.corpsecauth.core.models.AuthUser",
+        "kotlinx.coroutines.tasks.await",
+        "java.security.SecureRandom",
+        "kotlin.coroutines.resume",
+        "kotlin.coroutines.resumeWithException",
+        "kotlin.coroutines.suspendCoroutine"
+      ],
+      "symbols": [
+        {
+          "name": "FirebaseAuthManager",
+          "kind": "class",
+          "line": 24,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "loginWithTemporaryCredentials",
+          "kind": "fun",
+          "line": 35,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "invalidateTemporaryPassword",
+          "kind": "fun",
+          "line": 85,
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "generateSecureRandomPassword",
+          "kind": "fun",
+          "line": 125,
+          "modifiers": [
+            "private"
+          ]
+        },
+        {
+          "name": "getCurrentUser",
+          "kind": "fun",
+          "line": 139
+        },
+        {
+          "name": "signOut",
+          "kind": "fun",
+          "line": 153
+        },
+        {
+          "name": "createDefault",
+          "kind": "fun",
+          "line": 162
+        },
+        {
+          "name": "createWithAuth",
+          "kind": "fun",
+          "line": 169,
+          "modifiers": [
+            "internal"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/models/AuthResult.kt",
+      "language": "kotlin",
+      "lines": 56,
+      "imports": [
+        "es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException"
+      ],
+      "symbols": [
+        {
+          "name": "AuthResult",
+          "kind": "class",
+          "line": 13,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "Loading",
+          "kind": "object",
+          "line": 22,
+          "container": "AuthResult",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "Authenticated",
+          "kind": "class",
+          "line": 34,
+          "container": "AuthResult",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "Unauthenticated",
+          "kind": "object",
+          "line": 45,
+          "container": "AuthResult",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "Error",
+          "kind": "class",
+          "line": 55,
+          "container": "AuthResult",
+          "modifiers": [
+            "data"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/models/AuthUser.kt",
+      "language": "kotlin",
+      "lines": 48,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "AuthUser",
+          "kind": "class",
+          "line": 27,
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "getDisplayNameOrEmail",
+          "kind": "fun",
+          "line": 47
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/models/BiometricConfig.kt",
+      "language": "kotlin",
+      "lines": 66,
+      "imports": [],
+      "symbols": [
+        {
+          "name": "BiometricConfig",
+          "kind": "class",
+          "line": 26,
+          "modifiers": [
+            "data"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/models/DeviceInfo.kt",
+      "language": "kotlin",
+      "lines": 72,
+      "imports": [
+        "android.os.Build"
+      ],
+      "symbols": [
+        {
+          "name": "DeviceInfo",
+          "kind": "class",
+          "line": 21,
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "getDisplayName",
+          "kind": "fun",
+          "line": 39
+        },
+        {
+          "name": "toFirestoreMap",
+          "kind": "fun",
+          "line": 44
+        },
+        {
+          "name": "fromFirestoreMap",
+          "kind": "fun",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/models/EnrollmentState.kt",
+      "language": "kotlin",
+      "lines": 77,
+      "imports": [
+        "es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException"
+      ],
+      "symbols": [
+        {
+          "name": "EnrollmentState",
+          "kind": "class",
+          "line": 17,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "Idle",
+          "kind": "object",
+          "line": 21,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "ValidatingCredentials",
+          "kind": "class",
+          "line": 28,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "RequiresPasswordChange",
+          "kind": "class",
+          "line": 35,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "GeneratingCryptoKey",
+          "kind": "object",
+          "line": 43,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "AwaitingBiometric",
+          "kind": "class",
+          "line": 50,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "BindingDevice",
+          "kind": "object",
+          "line": 58,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "Success",
+          "kind": "class",
+          "line": 65,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        },
+        {
+          "name": "Error",
+          "kind": "class",
+          "line": 73,
+          "container": "EnrollmentState",
+          "modifiers": [
+            "data"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "passkeyauth-core/src/main/java/es/fjmarlop/corpsecauth/core/storage/SecureStorage.kt",
+      "language": "kotlin",
+      "lines": 309,
+      "imports": [
+        "android.content.Context",
+        "androidx.datastore.core.DataStore",
+        "androidx.datastore.preferences.core.Preferences",
+        "androidx.datastore.preferences.core.edit",
+        "androidx.datastore.preferences.core.stringPreferencesKey",
+        "androidx.datastore.preferences.preferencesDataStore",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.flow.Flow",
+        "kotlinx.coroutines.flow.first",
+        "kotlinx.coroutines.flow.map",
+        "kotlinx.coroutines.withContext"
+      ],
+      "symbols": [
+        {
+          "name": "SecureStorage",
+          "kind": "class",
+          "line": 41,
+          "modifiers": [
+            "internal"
+          ]
+        },
+        {
+          "name": "saveEncryptedToken",
+          "kind": "fun",
+          "line": 56,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "loadEncryptedToken",
+          "kind": "fun",
+          "line": 78,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "observeEncryptedToken",
+          "kind": "fun",
+          "line": 104,
+          "container": "SecureStorage"
+        },
+        {
+          "name": "saveDeviceId",
+          "kind": "fun",
+          "line": 119,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "loadDeviceId",
+          "kind": "fun",
+          "line": 140,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "saveUserId",
+          "kind": "fun",
+          "line": 161,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "loadUserId",
+          "kind": "fun",
+          "line": 182,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "saveLastActivityTimestamp",
+          "kind": "fun",
+          "line": 203,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "loadLastActivityTimestamp",
+          "kind": "fun",
+          "line": 222,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "hasStoredSession",
+          "kind": "fun",
+          "line": 241,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "clear",
+          "kind": "fun",
+          "line": 255,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "clearToken",
+          "kind": "fun",
+          "line": 279,
+          "container": "SecureStorage",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "create",
+          "kind": "fun",
+          "line": 307,
+          "container": "SecureStorage"
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/MainActivity.kt",
+      "language": "kotlin",
+      "lines": 74,
+      "imports": [
+        "android.os.Bundle",
+        "androidx.activity.compose.setContent",
+        "androidx.fragment.app.FragmentActivity",
+        "androidx.lifecycle.lifecycleScope",
+        "es.fjmarlop.corpsecauth.PasskeyAuth",
+        "es.fjmarlop.corpsecauth.PasskeyAuthConfig",
+        "es.fjmarlop.corpsecauth.sample.ui.navigation.AppNavigation",
+        "es.fjmarlop.corpsecauth.sample.ui.theme.PasskeyAuthTheme",
+        "kotlinx.coroutines.launch"
+      ],
+      "symbols": [
+        {
+          "name": "MainActivity",
+          "kind": "class",
+          "line": 33
+        },
+        {
+          "name": "onCreate",
+          "kind": "fun",
+          "line": 35,
+          "container": "MainActivity",
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "onStart",
+          "kind": "fun",
+          "line": 58,
+          "container": "MainActivity",
+          "modifiers": [
+            "override"
+          ]
+        },
+        {
+          "name": "onStop",
+          "kind": "fun",
+          "line": 66,
+          "container": "MainActivity",
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/SampleApplication.kt",
+      "language": "kotlin",
+      "lines": 33,
+      "imports": [
+        "android.app.Application",
+        "androidx.lifecycle.ProcessLifecycleOwner",
+        "androidx.lifecycle.lifecycleScope",
+        "es.fjmarlop.corpsecauth.PasskeyAuth",
+        "es.fjmarlop.corpsecauth.PasskeyAuthConfig",
+        "kotlinx.coroutines.launch"
+      ],
+      "symbols": [
+        {
+          "name": "SampleApplication",
+          "kind": "class",
+          "line": 15
+        },
+        {
+          "name": "onCreate",
+          "kind": "fun",
+          "line": 17,
+          "container": "SampleApplication",
+          "modifiers": [
+            "override"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/navigation/AppNavigation.kt",
+      "language": "kotlin",
+      "lines": 94,
+      "imports": [
+        "androidx.compose.runtime.Composable",
+        "androidx.compose.runtime.collectAsState",
+        "androidx.compose.runtime.getValue",
+        "androidx.lifecycle.viewmodel.compose.viewModel",
+        "androidx.navigation.compose.NavHost",
+        "androidx.navigation.compose.composable",
+        "androidx.navigation.compose.rememberNavController",
+        "es.fjmarlop.corpsecauth.core.models.AuthResult",
+        "es.fjmarlop.corpsecauth.sample.ui.screens.enrollment.EnrollmentScreen",
+        "es.fjmarlop.corpsecauth.sample.ui.screens.home.HomeScreen",
+        "es.fjmarlop.corpsecauth.sample.ui.screens.login.LoginScreen",
+        "es.fjmarlop.corpsecauth.sample.ui.screens.splash.SplashScreen",
+        "es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel"
+      ],
+      "symbols": [
+        {
+          "name": "Screen",
+          "kind": "class",
+          "line": 17,
+          "modifiers": [
+            "sealed"
+          ]
+        },
+        {
+          "name": "Splash",
+          "kind": "object",
+          "line": 18,
+          "container": "Screen"
+        },
+        {
+          "name": "Enrollment",
+          "kind": "object",
+          "line": 19,
+          "container": "Screen"
+        },
+        {
+          "name": "Login",
+          "kind": "object",
+          "line": 20,
+          "container": "Screen"
+        },
+        {
+          "name": "Home",
+          "kind": "object",
+          "line": 21,
+          "container": "Screen"
+        },
+        {
+          "name": "AppNavigation",
+          "kind": "fun",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/screens/enrollment/EnrollmentScreen.kt",
+      "language": "kotlin",
+      "lines": 180,
+      "imports": [
+        "androidx.compose.foundation.layout.*",
+        "androidx.compose.material3.*",
+        "androidx.compose.runtime.*",
+        "androidx.compose.ui.Alignment",
+        "androidx.compose.ui.Modifier",
+        "androidx.compose.ui.platform.LocalContext",
+        "androidx.compose.ui.text.input.PasswordVisualTransformation",
+        "androidx.compose.ui.unit.dp",
+        "androidx.fragment.app.FragmentActivity",
+        "es.fjmarlop.corpsecauth.core.models.EnrollmentState",
+        "es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel"
+      ],
+      "symbols": [
+        {
+          "name": "EnrollmentScreen",
+          "kind": "fun",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/screens/home/HomeScreen.kt",
+      "language": "kotlin",
+      "lines": 55,
+      "imports": [
+        "androidx.compose.foundation.layout.*",
+        "androidx.compose.material3.*",
+        "androidx.compose.runtime.*",
+        "androidx.compose.ui.Alignment",
+        "androidx.compose.ui.Modifier",
+        "androidx.compose.ui.unit.dp",
+        "es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel"
+      ],
+      "symbols": [
+        {
+          "name": "HomeScreen",
+          "kind": "fun",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/screens/login/LoginScreen.kt",
+      "language": "kotlin",
+      "lines": 107,
+      "imports": [
+        "androidx.compose.foundation.layout.*",
+        "androidx.compose.material3.*",
+        "androidx.compose.runtime.*",
+        "androidx.compose.ui.Alignment",
+        "androidx.compose.ui.Modifier",
+        "androidx.compose.ui.platform.LocalContext",
+        "androidx.compose.ui.unit.dp",
+        "androidx.compose.ui.unit.sp",
+        "androidx.fragment.app.FragmentActivity",
+        "es.fjmarlop.corpsecauth.core.models.AuthResult",
+        "es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel"
+      ],
+      "symbols": [
+        {
+          "name": "LoginScreen",
+          "kind": "fun",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/screens/splash/SplashScreen.kt",
+      "language": "kotlin",
+      "lines": 72,
+      "imports": [
+        "androidx.compose.foundation.layout.*",
+        "androidx.compose.material3.*",
+        "androidx.compose.runtime.*",
+        "androidx.compose.ui.Alignment",
+        "androidx.compose.ui.Modifier",
+        "androidx.compose.ui.text.font.FontWeight",
+        "androidx.compose.ui.unit.dp",
+        "androidx.compose.ui.unit.sp",
+        "androidx.lifecycle.viewmodel.compose.viewModel",
+        "es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel",
+        "kotlinx.coroutines.delay"
+      ],
+      "symbols": [
+        {
+          "name": "SplashScreen",
+          "kind": "fun",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/theme/Color.kt",
+      "language": "kotlin",
+      "lines": 17,
+      "imports": [
+        "androidx.compose.ui.graphics.Color"
+      ],
+      "symbols": []
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/theme/Theme.kt",
+      "language": "kotlin",
+      "lines": 36,
+      "imports": [
+        "androidx.compose.foundation.isSystemInDarkTheme",
+        "androidx.compose.material3.MaterialTheme",
+        "androidx.compose.material3.darkColorScheme",
+        "androidx.compose.material3.lightColorScheme",
+        "androidx.compose.runtime.Composable"
+      ],
+      "symbols": [
+        {
+          "name": "PasskeyAuthTheme",
+          "kind": "fun",
+          "line": 22
+        }
+      ]
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/theme/Type.kt",
+      "language": "kotlin",
+      "lines": 31,
+      "imports": [
+        "androidx.compose.material3.Typography",
+        "androidx.compose.ui.text.TextStyle",
+        "androidx.compose.ui.text.font.FontFamily",
+        "androidx.compose.ui.text.font.FontWeight",
+        "androidx.compose.ui.unit.sp"
+      ],
+      "symbols": []
+    },
+    {
+      "path": "sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/viewmodel/AuthViewModel.kt",
+      "language": "kotlin",
+      "lines": 90,
+      "imports": [
+        "androidx.fragment.app.FragmentActivity",
+        "androidx.lifecycle.ViewModel",
+        "androidx.lifecycle.viewModelScope",
+        "es.fjmarlop.corpsecauth.PasskeyAuth",
+        "es.fjmarlop.corpsecauth.core.models.AuthResult",
+        "es.fjmarlop.corpsecauth.core.models.EnrollmentState",
+        "kotlinx.coroutines.flow.MutableStateFlow",
+        "kotlinx.coroutines.flow.StateFlow",
+        "kotlinx.coroutines.flow.asStateFlow",
+        "kotlinx.coroutines.launch"
+      ],
+      "symbols": [
+        {
+          "name": "AuthViewModel",
+          "kind": "class",
+          "line": 14
+        },
+        {
+          "name": "isDeviceEnrolled",
+          "kind": "fun",
+          "line": 27,
+          "container": "AuthViewModel",
+          "modifiers": [
+            "suspend"
+          ]
+        },
+        {
+          "name": "isAuthenticated",
+          "kind": "fun",
+          "line": 31,
+          "container": "AuthViewModel"
+        },
+        {
+          "name": "enrollDevice",
+          "kind": "fun",
+          "line": 35,
+          "container": "AuthViewModel"
+        },
+        {
+          "name": "authenticate",
+          "kind": "fun",
+          "line": 71,
+          "container": "AuthViewModel"
+        },
+        {
+          "name": "logout",
+          "kind": "fun",
+          "line": 87,
+          "container": "AuthViewModel"
+        }
+      ]
+    }
+  ]
+}
