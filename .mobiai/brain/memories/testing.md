@@ -110,6 +110,18 @@ Antes de escribir tests, se extraen 3 interfaces `internal` que abstraen las fro
   | `requireStrongBox + sin StrongBox` → `StrongBoxNotAvailable` | ⏭️ | ✅ |
   | Default + sin StrongBox → fallback a TEE (verificado vía `KeyInfo.SECURITY_LEVEL_TRUSTED_ENVIRONMENT`) | ⏭️ | ✅ |
 
+### Smoke test manual (release checklist)
+
+Hay un checklist manual en `docs/MANUAL-SMOKE-TEST.md` que cubre lo que los tests automatizados NO pueden:
+- Interacción real con `BiometricPrompt` (huella física, cancelación, lockout)
+- Cambio de biometría → `KeyPermanentlyInvalidatedException` (escenario clave de seguridad del ADR-004)
+- Revocación remota vía Firestore
+- Backgrounding y rotación de Activity durante el prompt
+
+**10 escenarios (S1-S10)** con pasos, expected y pass criteria. Cinco son bloqueantes para release: S1 (enrollment), S2 (login), S3 (cancelación enrollment), S6 (cambio biometría), S8 (revocación remota).
+
+Referenciado desde `DEVELOPMENT.md` en el "Release Process" como paso 5 — bloqueante antes de publicar Maven Central / GitHub Release.
+
   **Comandos:**
   ```bash
   adb devices                                                # verificar device conectado

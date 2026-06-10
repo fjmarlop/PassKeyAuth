@@ -239,12 +239,14 @@ fun `keys should not be extractable from KeyStore`() {
 
 1. Update version en `gradle.properties`
 2. Update `CHANGELOG.md`
-3. Run full test suite
-4. Create release branch: `release/vX.Y.Z`
-5. Build release artifacts: `.\gradlew.bat assembleRelease`
-6. Tag commit: `git tag vX.Y.Z`
-7. Publish to Maven Central
-8. Create GitHub Release
+3. Run full test suite (`./gradlew passkeyauth-core:testDebugUnitTest`)
+4. Run instrumented tests en device A (StrongBox) y device B (TEE only)
+5. **Ejecutar [Manual Smoke Test](docs/MANUAL-SMOKE-TEST.md)** — bloqueante: BiometricPrompt no se puede automatizar
+6. Create release branch: `release/vX.Y.Z`
+7. Build release artifacts: `.\gradlew.bat assembleRelease`
+8. Tag commit: `git tag vX.Y.Z`
+9. Publish to Maven Central
+10. Create GitHub Release
 
 ## Metricas de Calidad
 
