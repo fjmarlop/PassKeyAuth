@@ -78,10 +78,11 @@ Antes de escribir tests, se extraen 3 interfaces `internal` que abstraen las fro
   | 1 (login) | (ninguno — fallo temprano = limpio) | `dado login falla con credenciales invalidas...` |
   | 3 (generateKey) | `signOut` (sin deleteKey: no hay key) | `dado generateKey falla por StrongBox...` |
   | 4 (biometría) | `deleteKey` + `signOut` | `dado biometria cancelada...` |
+  | 5 (cifrado) | `deleteKey` + `signOut` | `dado cipher doFinal falla en paso 5...` |
   | 6 (bindDevice) | `deleteKey` + `clear` + `signOut` | `dado bindDevice falla en Firestore...` |
   | 7 (storage) | `deleteKey` + `revokeDevice` + `signOut` | `dado saveEncryptedToken falla...` |
 
-  - **Hallazgo bug latente:** el paso 5 (cifrado con `cipher.doFinal`) NO tiene rollback explícito en el código actual → documentado en `bugfixes.md`. Test del paso 5 queda pendiente hasta que se implemente el rollback en producción.
+  - **Bug del paso 5 resuelto** (ver `bugfixes.md`): el código añade try/catch alrededor de `cipher.doFinal()` con rollback equivalente al paso 4. Test de regresión inyecta `Cipher` mockeado con MockK que lanza `BadPaddingException`. **Matriz de rollback ahora completa para los 6 pasos no-comentados** (queda fuera paso 2, comentado en producción).
   - **Plantilla canónica del patrón rollback:** copiar para nuevos escenarios cambiando solo `xxxResult = Result.failure(...)` y los `coVerify(exactly = 0)`.
   - Cada test valida también que la excepción original se preserva en `EnrollmentState.Error.exception` (con `isSameInstanceAs` para `PasskeyAuthException` o `cause` para excepciones envueltas).
 - ✅ **3. `AndroidKeyStoreManager` instrumented en device físico** (`src/androidTest/.../crypto/AndroidKeyStoreManagerInstrumentedTest.kt`) — **9 tests, 7 pasan + 2 skipped en device con StrongBox**.
@@ -124,7 +125,7 @@ Antes de escribir tests, se extraen 3 interfaces `internal` que abstraen las fro
   - Diferencia API 31+: usar `getSecurityLevel()` (preciso); API 26-30: `isInsideSecureHardware()` (deprecado pero funciona)
 
 **Estado de la suite:**
-- **JVM:** 11/11 tests verdes en <7s (5 smoke + 1 happy path + 5 rollback).
+- **JVM:** 12/12 tests verdes en <7s (5 smoke + 1 happy path + 6 rollback — incluye paso 5).
 - **Instrumented:**
   - Device A (Pixel-like con StrongBox, API alto): 7 PASSED + 2 SKIPPED
   - Device B (Xiaomi Mi 9T, API 29 sin StrongBox): 8 PASSED + 1 SKIPPED

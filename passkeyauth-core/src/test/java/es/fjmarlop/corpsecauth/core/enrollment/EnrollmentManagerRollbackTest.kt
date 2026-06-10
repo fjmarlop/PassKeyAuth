@@ -9,6 +9,9 @@ import es.fjmarlop.corpsecauth.core.errors.BiometricException
 import es.fjmarlop.corpsecauth.core.errors.CryptoException
 import es.fjmarlop.corpsecauth.core.errors.DeviceException
 import es.fjmarlop.corpsecauth.core.errors.FirebaseException
+import io.mockk.every
+import javax.crypto.Cipher
+import javax.crypto.BadPaddingException
 import es.fjmarlop.corpsecauth.core.fakes.FakeAuthBackend
 import es.fjmarlop.corpsecauth.core.fakes.FakeBiometricAuthenticator
 import es.fjmarlop.corpsecauth.core.fakes.FakeKeyStoreManager
@@ -39,20 +42,19 @@ import org.junit.Test
  * Si un paso falla y el rollback no limpia el estado, el SDK queda en un estado
  * parcial inconsistente — lo que viola la garantia de "todo o nada".
  *
- * **Cobertura demostrada en este fichero (matriz completa de pasos con rollback):**
+ * **Cobertura demostrada en este fichero (matriz COMPLETA de pasos con rollback):**
  *
- * | Paso que falla | Acciones de rollback esperadas             | Test                     |
- * |----------------|-------------------------------------------|--------------------------|
- * | 1 (login)      | (ninguna — no se ha tocado nada todavia)  | `dado login falla...`   |
- * | 3 (genKey)     | `signOut`                                  | `dado generateKey...`   |
- * | 4 (biometria)  | `deleteKey` + `signOut`                    | `dado biometria...`     |
- * | 6 (bindDevice) | `deleteKey` + `clear` + `signOut`          | `dado bindDevice...`    |
- * | 7 (storage)    | `deleteKey` + `revokeDevice` + `signOut`   | `dado saveEncrypted...` |
+ * | Paso que falla | Acciones de rollback esperadas              | Test                     |
+ * |----------------|--------------------------------------------|--------------------------|
+ * | 1 (login)      | (ninguna — no se ha tocado nada todavia)   | `dado login falla...`   |
+ * | 3 (genKey)     | `signOut`                                   | `dado generateKey...`   |
+ * | 4 (biometria)  | `deleteKey` + `signOut`                     | `dado biometria...`     |
+ * | 5 (cifrado)    | `deleteKey` + `signOut`                     | `dado cipher doFinal...` |
+ * | 6 (bindDevice) | `deleteKey` + `clear` + `signOut`           | `dado bindDevice...`    |
+ * | 7 (storage)    | `deleteKey` + `revokeDevice` + `signOut`    | `dado saveEncrypted...` |
  *
- * **Por que NO testeamos rollback de paso 5:** el codigo actual NO tiene rollback
- * explicito para el cifrado real (cipher.doFinal). Si falla, cae al catch outer
- * que NO limpia. Documentado como hallazgo en bugfixes.md para abordar despues.
- * Cuando se implemente el rollback del paso 5, anadir test aqui.
+ * El paso 2 (invalidateTemporaryPassword) esta comentado en codigo de produccion
+ * actualmente, asi que no se testea aqui. Cuando se descomente, anadir test.
  *
  * **Plantilla para tests futuros:** copiar este fichero para anadir mas escenarios
  * de rollback (paso 1, paso 3, paso 7, etc.). El patron es:
@@ -385,5 +387,68 @@ internal class EnrollmentManagerRollbackTest {
         assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(1)
         assertThat(biometricAuthenticator.encryptionCallCount).isEqualTo(1)
         assertThat(deviceRegistry.bindDeviceCallCount).isEqualTo(1)
+    }
+
+    /**
+     * Rollback de PASO 5 (cipher.doFinal falla durante el cifrado).
+     *
+     * **Test de regresion** que protege contra el bug detectado durante el commit
+     * inicial de testing (ver bugfixes.md): el paso 5 cifraba con `cipher.doFinal()`
+     * pero NO tenia try/catch — si la operacion lanzaba (BadPaddingException,
+     * IllegalBlockSizeException, etc.) la excepcion caia al catch outer del flow
+     * que NO ejecutaba rollback. Esto violaba la garantia "todo o nada" del ADR-006.
+     *
+     * **Fix aplicado:** envolver el bloque de cifrado en try/catch que ejecuta el
+     * rollback equivalente al del paso 4 (`deleteKey` + `signOut`) y emite
+     * `EnrollmentState.Error` con [CryptoException.EncryptionFailed].
+     *
+     * **Estrategia del test:** inyectamos un Cipher mockeado que lanza
+     * `BadPaddingException` en `doFinal()`. El fake de biometric lo devuelve
+     * en `encryptionResult`.
+     */
+    @Test
+    fun `dado cipher doFinal falla en paso 5 entonces rollback borra clave y signOut`() = runTest {
+        // ARRANGE: cipher mockeado que lanza en doFinal
+        val cipherException = BadPaddingException("Cipher invalido (simulado)")
+        val failingCipher = mockk<Cipher>(relaxed = false)
+        every { failingCipher.doFinal(any<ByteArray>()) } throws cipherException
+        // iv se llama en la rama de exito, no en la de fallo — pero por defensa
+        // configuramos un valor por si el orden de evaluacion cambia.
+        every { failingCipher.iv } returns ByteArray(12)
+
+        biometricAuthenticator.encryptionResult = Result.success(failingCipher)
+
+        // ACT + ASSERT emisiones
+        enrollmentManager.enrollDevice(testEmail, testPassword).test {
+            assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
+
+            // Estado siguiente: Error con CryptoException.EncryptionFailed envolviendo
+            // la BadPaddingException original.
+            val errorState = awaitItem()
+            assertThat(errorState).isInstanceOf(EnrollmentState.Error::class.java)
+            val errorException = (errorState as EnrollmentState.Error).exception
+            assertThat(errorException).isInstanceOf(CryptoException.EncryptionFailed::class.java)
+            assertThat(errorException.cause).isSameInstanceAs(cipherException)
+
+            awaitComplete()
+        }
+
+        // ASSERT rollback paso 5 (equivalente al paso 4):
+        assertThat(keyStoreManager.deleteKeyCallCount).isEqualTo(1)
+        assertThat(authBackend.signOutCallCount).isEqualTo(1)
+
+        // ASSERT pasos posteriores NO se ejecutaron
+        assertThat(deviceRegistry.bindDeviceCallCount).isEqualTo(0)
+        assertThat(deviceRegistry.revokeDeviceCallCount).isEqualTo(0)
+        coVerify(exactly = 0) { secureStorage.saveEncryptedToken(any()) }
+        coVerify(exactly = 0) { secureStorage.clear() }
+
+        // ASSERT pasos previos SI ocurrieron
+        assertThat(authBackend.authenticateCallCount).isEqualTo(1)
+        assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(1)
+        assertThat(biometricAuthenticator.encryptionCallCount).isEqualTo(1)
     }
 }

@@ -145,11 +145,11 @@ La realidad: las 3 funciones SÍ devuelven `Result<Unit>`. El comentario es inco
 
 ## EnrollmentManager paso 5 (cifrado) no hace rollback si falla
 
-**Status:** Detectado por inspección al escribir `EnrollmentManagerRollbackTest`, sin fix aún · **Referencia:** ADR-006, ADR-011
+**Status:** ✅ Resuelto · **Referencia:** ADR-006, ADR-011, PR `fix/enrollment-step5-rollback`
 
-**Bug latente:**
+**Bug original:**
 
-En `EnrollmentManager.enrollDevice()` flow, los pasos 4, 6 y 7 tienen `getOrElse { ... }` con rollback explícito. El **paso 5 (cifrado real con `cipher.doFinal()` + Base64)** NO:
+En `EnrollmentManager.enrollDevice()` flow, los pasos 4, 6 y 7 tienen `getOrElse { ... }` con rollback explícito. El **paso 5 (cifrado real con `cipher.doFinal()` + Base64)** NO lo tenía:
 
 ```kotlin
 // PASO 5: Cifrar token de sesion (SIN rollback explicito)
@@ -171,10 +171,9 @@ Si `doFinal()` lanza, cae al `catch (e: Exception)` outer del flow:
 
 **Probabilidad de ocurrencia:** baja. `cipher.doFinal()` solo falla si el cipher quedó en estado inválido entre la autenticación biométrica (paso 4) y este uso. En la práctica con `BiometricPrompt.CryptoObject` esto no debería ocurrir, pero la defensa en profundidad lo exige.
 
-**Fix sugerido:**
+**Fix aplicado:** envolver el bloque de cifrado en try/catch con rollback equivalente al del paso 4:
 
 ```kotlin
-// PASO 5: Cifrar token de sesion
 val encryptedBase64 = try {
     val token = session.idToken
     val ciphertext = authenticatedCipher.doFinal(token.toByteArray(Charsets.UTF_8))
@@ -183,12 +182,20 @@ val encryptedBase64 = try {
 } catch (e: Exception) {
     keyStoreManager.deleteKey()
     authBackend.signOut()
-    emit(EnrollmentState.Error(wrapException(CryptoException.EncryptionFailed("Cifrado fallo en paso 5", e))))
+    emit(EnrollmentState.Error(
+        CryptoException.EncryptionFailed("Cifrado fallo en paso 5: ${e.message}", e)
+    ))
     return@flow
 }
 ```
 
-**Test que falta:** cuando se implemente este rollback, añadir `EnrollmentManagerRollbackTest.dado cipher doFinal lanza...` configurando un mock del Cipher que lance en `doFinal()`.
+**Test de regresión añadido:** `EnrollmentManagerRollbackTest.dado cipher doFinal falla en paso 5 entonces rollback borra clave y signOut` (inyecta `Cipher` mockeado que lanza `BadPaddingException` en `doFinal()`).
+
+**Matriz de rollback ahora completa para todos los pasos no-comentados** (1, 3, 4, 5, 6, 7). Solo queda fuera el paso 2 (`invalidateTemporaryPassword`) porque está comentado en producción.
+
+**Verificación:**
+- ✅ `passkeyauth-core:testDebugUnitTest` verde (12/12)
+- ✅ `assembleDebug` (sample app) verde
 
 ---
 
