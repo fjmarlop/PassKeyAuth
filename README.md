@@ -2,7 +2,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-blue.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-blue.svg)](https://kotlinlang.org)
+[![Tests](https://img.shields.io/badge/Tests-24%20JVM%2FRobolectric%20%2B%208%20instrumented-brightgreen.svg)](docs/adr/011-testing-stack-and-strategy.md)
 
 Librería Android para autenticación sin contraseñas usando biometría hardware-backed y Firebase, diseñada para entornos enterprise con modelo "1 user = 1 device".
 
@@ -11,17 +12,20 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 **Versión actual:** 0.2.0-alpha
 
 ### ✅ Completado
-- [x] Arquitectura multi-módulo
-- [x] Core SDK completo (21 archivos)
-- [x] PasskeyAuth API pública
+- [x] Arquitectura multi-módulo con interfaces internas para testabilidad
+- [x] Core SDK completo
+- [x] PasskeyAuth API pública (estable)
 - [x] Passwordless REAL (sin password de usuario)
 - [x] Session timeout configurable
 - [x] Sample app funcional
+- [x] **Suite de tests automatizados:** 24 unit/Robolectric + 8 instrumented por device (matriz StrongBox + TEE validada en hardware real)
+- [x] **Manual smoke test checklist** para release (10 escenarios E2E con BiometricPrompt)
+- [x] 11 ADRs documentados
 - [x] Documentación exhaustiva
-- [x] 9 ADRs documentados
 
 ### 🚧 En Desarrollo
-- [ ] Testing completo (unit + integration)
+- [ ] Tests con Firebase emulator suite (`FirebaseAuthBackend`, `FirestoreDeviceRegistry`)
+- [ ] Tests del facade `PasskeyAuth` y métodos auxiliares de `EnrollmentManager`
 - [ ] Security hardening (root detection, etc)
 - [ ] Maven Central publishing
 
@@ -52,14 +56,19 @@ SDK sin dependencias de UI. Características principales:
 3. **Session Management**: Timeout configurable, invalidación automática
 
 **📦 Componentes:**
-- `PasskeyAuth` - API pública (facade pattern)
-- `EnrollmentManager` - Orquestador transaccional
-- `BiometricAuthenticator` - Wrapper de BiometricPrompt
-- `FirebaseAuthManager` - Integración Firebase Auth
-- `DeviceBindingManager` - Registry en Firestore
-- `KeyStoreManager` - Gestión de claves AES
-- `CryptoProvider` - Operaciones de cifrado
-- `SecureStorage` - DataStore cifrado
+
+| Componente público | Tipo | Descripción |
+|---|---|---|
+| `PasskeyAuth` | facade `object` | API pública del SDK |
+| `EnrollmentManager` | orquestador | Enrollment transaccional de 7 pasos con rollback explícito |
+| `BiometricAuthenticator` | interfaz `internal` | Wrapper de BiometricPrompt (impl `AndroidBiometricAuthenticator`) |
+| `KeyStoreManager` | interfaz `internal` | Gestión de claves AES (impl `AndroidKeyStoreManager`) |
+| `AuthBackend` + `PasswordManagementBackend` | interfaces `internal` | Backend de autenticación (impl `FirebaseAuthBackend`) |
+| `DeviceRegistry` | interfaz `internal` | Registry de dispositivos (impl `FirestoreDeviceRegistry`) |
+| `CryptoProvider` | clase `internal` | Operaciones de cifrado |
+| `SecureStorage` | clase `internal` | DataStore Preferences |
+
+**Diseño:** las fronteras de plataforma (BiometricPrompt, AndroidKeyStore, Firebase) están abstraídas tras interfaces `internal` para permitir testing JVM sin hardware ni Firebase. Ver [ADR-010](docs/adr/010-internal-abstractions-for-testability.md). Backend-agnóstico: la separación `AuthBackend` ↔ `FirebaseAuthBackend` deja preparado el SDK para soportar otros backends (Keycloak, Auth0, custom) en el futuro sin breaking changes.
 
 ---
 
@@ -68,8 +77,9 @@ SDK sin dependencias de UI. Características principales:
 ### Software
 - **Min SDK:** API 26 (Android 8.0)
 - **Target SDK:** API 35 (Android 15)
-- **Kotlin:** 2.1.0+
-- **Gradle:** 9.1.0+
+- **Kotlin:** 2.2.10
+- **AGP:** 9.0.0+
+- **JDK:** 17
 
 ### Hardware
 - Sensor biométrico (huella, face, iris)
@@ -340,10 +350,16 @@ PasskeyAuthConfig.Custom(
 
 ## 📚 Documentación
 
-- **[Guía de Seguridad](SECURITY.md)** - Mejores prácticas y checklist
-- **[ADRs](docs/adr/)** - 9 decisiones arquitectónicas documentadas
-- **[CHANGELOG](CHANGELOG.md)** - Historial de versiones
-- **[DEVELOPMENT](DEVELOPMENT.md)** - Guía para desarrolladores
+- **[Guía de Seguridad](SECURITY.md)** — Mejores prácticas y checklist
+- **[ADRs](docs/adr/)** — 11 decisiones arquitectónicas documentadas, incluyendo:
+  - [ADR-004](docs/adr/004-keystoremanager-aes-gcm.md) AES-256-GCM y StrongBox optional
+  - [ADR-006](docs/adr/006-enrollmentmanager-transactional.md) EnrollmentManager transaccional
+  - [ADR-009](docs/adr/009-client-side-security-responsibility.md) Responsabilidad del cliente
+  - [ADR-010](docs/adr/010-internal-abstractions-for-testability.md) Interfaces internas para testabilidad y backend-independence
+  - [ADR-011](docs/adr/011-testing-stack-and-strategy.md) Stack de testing y estrategia
+- **[Manual Smoke Test](docs/MANUAL-SMOKE-TEST.md)** — Checklist de release (10 escenarios E2E con BiometricPrompt real)
+- **[CHANGELOG](CHANGELOG.md)** — Historial de versiones
+- **[DEVELOPMENT](DEVELOPMENT.md)** — Guía para desarrolladores
 
 ---
 
@@ -364,33 +380,52 @@ PasskeyAuthConfig.Custom(
 ```
 
 ### Tests
-```bash
-# Unit tests
-.\gradlew.bat test
 
-# Instrumented tests
-.\gradlew.bat connectedAndroidTest
+El SDK tiene una pirámide de tests con tres niveles diferenciados según lo que cada uno puede validar de forma fiable. Estrategia documentada en [ADR-011](docs/adr/011-testing-stack-and-strategy.md).
+
+```bash
+# 1) Tests JVM + Robolectric (rápidos, <12s) — orquestador, fakes, SecureStorage
+.\gradlew.bat passkeyauth-core:testDebugUnitTest
+
+# 2) Tests instrumented en device físico — AndroidKeyStore real, StrongBox/TEE
+.\gradlew.bat passkeyauth-core:connectedDebugAndroidTest
+
+# 3) Reporte de cobertura JaCoCo
+.\gradlew.bat passkeyauth-core:jacocoTestReport
+# Reportes en passkeyauth-core/build/reports/jacoco/jacocoTestReport/
 ```
+
+**Cobertura actual:**
+
+| Nivel | Qué valida | Tests |
+|---|---|---|
+| JVM puro | Orquestador transaccional, mappers de errores, fakes | 12 (`EnrollmentManager` happy path + matriz completa de rollback para los 6 pasos) |
+| Robolectric | `SecureStorage` + DataStore con `Context` real | 12 |
+| Instrumented (device físico) | `AndroidKeyStoreManager` real con StrongBox vs TEE | 8-9 por device (matriz **ADR-004 validada al 100%** con device A con StrongBox + device B sin StrongBox) |
+
+**Smoke test manual antes de release:** ver [`docs/MANUAL-SMOKE-TEST.md`](docs/MANUAL-SMOKE-TEST.md) — 10 escenarios E2E con BiometricPrompt real que los tests automatizados no pueden cubrir (interacción física con el sensor biométrico, cambio de huella, lockout, revocación remota, etc.).
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] **v0.1.0** - Core SDK + Arquitectura
-- [x] **v0.2.0** - Passwordless real + Session timeout + Fixes
-- [ ] **v0.3.0** - Security hardening (root detection, etc)
-- [ ] **v0.4.0** - Testing completo (80%+ coverage)
-- [ ] **v1.0.0** - Maven Central + Producción ready
+- [x] **v0.1.0** — Core SDK + Arquitectura
+- [x] **v0.2.0** — Passwordless real + Session timeout + Fixes
+- [x] **v0.2.x** — Testing foundation: interfaces internas, fakes, suite de 24 tests JVM/Robolectric + matriz instrumented ADR-004, manual smoke test checklist
+- [ ] **v0.3.0** — Tests Firebase emulator + facade `PasskeyAuth` + security hardening (root detection, etc)
+- [ ] **v0.4.0** — Backend-agnostic: segundo backend de referencia (Keycloak o custom) usando las interfaces `AuthBackend` / `DeviceRegistry`
+- [ ] **v1.0.0** — Maven Central + Producción ready
 
 ---
 
 ## 📊 Estadísticas
 
 **Versión 0.2.0-alpha:**
-- Archivos core: 21
-- Líneas de código: ~4,000
-- ADRs documentados: 9
-- Fixes críticos: 7 resueltos
+- ADRs documentados: 11
+- Tests automatizados verdes: 24 JVM/Robolectric + 8–9 instrumented por device físico
+- Matriz hardware validada: device con StrongBox + device con TEE only
+- Bugs latentes detectados por los tests y resueltos: 2 (rollback paso 5, comentario engañoso en `EnrollmentManager`)
+- Cleanup técnico aplicado: migración `android.util.Base64` → `java.util.Base64` (portabilidad JVM)
 
 ---
 
