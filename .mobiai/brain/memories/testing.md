@@ -137,7 +137,7 @@ Referenciado desde `DEVELOPMENT.md` en el "Release Process" como paso 5 — bloq
   - Diferencia API 31+: usar `getSecurityLevel()` (preciso); API 26-30: `isInsideSecureHardware()` (deprecado pero funciona)
 
 **Estado de la suite:**
-- **JVM:** 12/12 tests verdes en <7s (5 smoke + 1 happy path + 6 rollback — incluye paso 5).
+- **JVM puro + Robolectric:** **24/24 tests verdes** en <12s (5 smoke + 1 happy path + 6 rollback + **12 Robolectric de SecureStorage**).
 - **Instrumented:**
   - Device A (Pixel-like con StrongBox, API alto): 7 PASSED + 2 SKIPPED
   - Device B (Xiaomi Mi 9T, API 29 sin StrongBox): 8 PASSED + 1 SKIPPED
@@ -216,6 +216,20 @@ Para escribir un test de rollback:
 1. **`SecureStorage.saveUserId/saveDeviceId/saveLastActivityTimestamp`** SÍ devuelven `Result<Unit>` (no `Unit` como dice el comentario incorrecto en `EnrollmentManager`). Usar `coEvery { ... } returns Result.success(Unit)`, NO `coJustRun`.
 2. **`android.util.Base64.encodeToString` retorna `null` en JVM puro** (con `isReturnDefaultValues=true`) → ✅ **Resuelto migrando a `java.util.Base64` en producción** (`EnrollmentManager` paso 5, `EncryptedData.kt`). Disponible desde API 26 = minSdk. Documentado en ADR-011, ver `bugfixes.md`. **Lección general:** preferir `java.util.*` sobre `android.util.*` cuando exista equivalente al mismo API level — gana portabilidad sin coste.
 3. **MockK con `mockk(relaxed = true)` y final classes funciona out-of-the-box** — la versión 1.13.13 incluye el inline mock maker sin configuración extra.
+
+### Patrón Robolectric (tercera plantilla canónica)
+
+Para escribir tests Robolectric (ver `SecureStorageRobolectricTest.kt`):
+1. `@RunWith(RobolectricTestRunner::class)` en la clase
+2. `private val context: Context = ApplicationProvider.getApplicationContext()` para obtener `Context`
+3. `@Before` y `@After` con `storage.clear()` para aislar tests — DataStore persiste a un archivo en filesystem temporal y compartiría estado entre tests sin esta limpieza
+4. Sin `MainDispatcherRule` — Robolectric provee un `Dispatchers.Main` válido
+5. Bundle del version catalog: `libs.bundles.testing.robolectric` (incluye `androidx-test-core` para `ApplicationProvider`)
+
+### Restricciones descubiertas con Robolectric
+
+1. **`preferencesDataStore` extension prohibe dos DataStores para el mismo archivo.** Crear dos `SecureStorage` con el mismo `Context` lanza `IllegalStateException` desde `OkioStorage.kt:65`. El test que verificaba "dos instancias comparten estado" se eliminó porque testeaba un escenario que `PasskeyAuth` (con `by lazy`) nunca produce.
+2. **JaCoCo no ve cobertura de tests Robolectric.** Robolectric usa `SandboxClassLoader` para inyectar clases Android, lo cual esquiva la instrumentación de JaCoCo. Resultado: el reporte muestra `SecureStorage` con 0% covered aunque los 12 tests pasan y la validan end-to-end. **Esto es limitación de tooling, no de los tests.** Documentado como "esperado" — no perseguir métricas de cobertura aquí.
 
 Tras los 3 commits → escribir 3 tests "plantilla de oro":
 1. Happy path de `EnrollmentManager.enrollDevice()` (JVM)
