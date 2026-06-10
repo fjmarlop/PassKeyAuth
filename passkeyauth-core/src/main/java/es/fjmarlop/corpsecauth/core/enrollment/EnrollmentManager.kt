@@ -5,6 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import es.fjmarlop.corpsecauth.core.auth.BiometricAuthenticator
 import es.fjmarlop.corpsecauth.core.crypto.CryptoProvider
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
+import es.fjmarlop.corpsecauth.core.errors.CryptoException
 import es.fjmarlop.corpsecauth.core.errors.EnrollmentException
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
 import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
@@ -84,15 +85,36 @@ internal class EnrollmentManager private constructor(
             }
 
             // PASO 5: Cifrar token de sesion
+            //
+            // Rollback explicito (ADR-006): si cipher.doFinal lanza (cipher invalidado,
+            // BadPaddingException, etc.) hay que limpiar la clave generada en paso 3 y
+            // cerrar la sesion Firebase del paso 1. Sin este try/catch, la excepcion
+            // caia al catch outer que solo emitia Error sin rollback — violacion de la
+            // garantia "todo o nada" del enrollment transaccional.
             println("🔐 EnrollmentManager: Paso 5 - Cifrando token de sesion")
 
-            val token = session.idToken
-            val ciphertext = authenticatedCipher.doFinal(token.toByteArray(Charsets.UTF_8))
-            val iv = authenticatedCipher.iv
+            val encryptedBase64 = try {
+                val token = session.idToken
+                val ciphertext = authenticatedCipher.doFinal(token.toByteArray(Charsets.UTF_8))
+                val iv = authenticatedCipher.iv
 
-            // Usamos java.util.Base64 (no android.util.Base64) para portabilidad JVM.
-            // Disponible desde API 26 = nuestro minSdk. Ver ADR-011.
-            val encryptedBase64 = java.util.Base64.getEncoder().encodeToString(iv + ciphertext)
+                // Usamos java.util.Base64 (no android.util.Base64) para portabilidad JVM.
+                // Disponible desde API 26 = nuestro minSdk. Ver ADR-011.
+                java.util.Base64.getEncoder().encodeToString(iv + ciphertext)
+            } catch (e: Exception) {
+                println("❌ EnrollmentManager: Paso 5 fallo - Cifrado: ${e.message}")
+                keyStoreManager.deleteKey()
+                authBackend.signOut()
+                emit(
+                    EnrollmentState.Error(
+                        CryptoException.EncryptionFailed(
+                            "Cifrado fallo en paso 5: ${e.message}",
+                            e
+                        )
+                    )
+                )
+                return@flow
+            }
 
             // PASO 6: Vincular dispositivo en registry remoto
             println("🔐 EnrollmentManager: Paso 6 - Vinculando dispositivo")
