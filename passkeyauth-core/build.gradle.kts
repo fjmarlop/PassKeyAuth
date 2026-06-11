@@ -102,6 +102,20 @@ dependencies {
     // Tests instrumentados en device: SOLO para validacion en hardware real
     // (AndroidKeyStore con StrongBox/TEE, BiometricPrompt smoke tests).
     androidTestImplementation(libs.bundles.testing.android)
+
+    // Lint rules custom del SDK (ADR-012). lintPublish empaqueta las rules
+    // en el AAR del core para que los consumers reciban las checks automaticamente
+    // cuando ejecutan ./gradlew lint en su app.
+    lintPublish(project(":passkeyauth-lint"))
+}
+
+// La configuracion lintPublish solo admite UN jar. Sin isTransitive=false,
+// kotlin-stdlib (dependencia automatica del plugin kotlin-jvm) se anade
+// como segunda entrada y falla el build (prepareLintJarForPublish).
+// Las dependencias de runtime del modulo lint son provistas por el lint
+// runner del consumer (que ya tiene Kotlin), no necesitamos empaquetarlas.
+configurations.named("lintPublish") {
+    isTransitive = false
 }
 
 // =====================================================================

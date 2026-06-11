@@ -27,4 +27,5 @@ rootProject.name = "PasskeyAuth"
 
 include(":passkeyauth-core")
 include(":passkeyauth-ui")
+include(":passkeyauth-lint")
 include(":sample")

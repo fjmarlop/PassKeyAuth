@@ -248,6 +248,7 @@ Toda decision importante debe documentarse en `docs/adr/`.
 - ADR-009: Client-Side Security Responsibility
 - ADR-010: Internal Abstractions for Testability and Backend Independence
 - ADR-011: Testing Stack and Infrastructure (JUnit 4 + MockK + Truth + Turbine + JaCoCo)
+- ADR-012: Custom Lint Rules para enforcing del contrato del SDK (FragmentActivity, SplashScreen anti-pattern, lifecycle hooks)
 
 ## Seguridad
 
