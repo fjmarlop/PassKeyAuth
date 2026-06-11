@@ -137,7 +137,15 @@ Referenciado desde `DEVELOPMENT.md` en el "Release Process" como paso 5 — bloq
   - Diferencia API 31+: usar `getSecurityLevel()` (preciso); API 26-30: `isInsideSecureHardware()` (deprecado pero funciona)
 
 **Estado de la suite:**
-- **JVM puro + Robolectric:** **24/24 tests verdes** en <12s (5 smoke + 1 happy path + 6 rollback + **12 Robolectric de SecureStorage**).
+- **JVM puro + Robolectric:** **49 verdes + 1 ignored** en <20s:
+  - 5 `FakesSmokeTest` (canary)
+  - 1 `EnrollmentManagerHappyPathTest`
+  - 6 `EnrollmentManagerRollbackTest` (matriz completa: pasos 1, 3, 4, 5, 6, 7)
+  - **10 `EnrollmentManagerHelpersTest`** ← NUEVO (`isDeviceEnrolled`, `validateEnrollment`, `unenrollDevice`)
+  - 12 `SecureStorageRobolectricTest`
+  - **15 `PasskeyAuthFacadeTest`** ← NUEVO (initialize, lifecycle hooks, session timeout, invalidateSession, isAuthenticated, requireInitialized) + 1 `@Ignore` (`logout` — limitación conocida del patrón `mockkObject` + `by lazy`; cubierto por smoke S7)
+
+**Cobertura JaCoCo:** 22.7% instrucciones / 21.9% branches / 20.9% métodos. Dobló desde la sesión anterior (11.2%/7%/3%).
 - **Instrumented:**
   - Device A (Pixel-like con StrongBox, API alto): 7 PASSED + 2 SKIPPED
   - Device B (Xiaomi Mi 9T, API 29 sin StrongBox): 8 PASSED + 1 SKIPPED
@@ -147,6 +155,46 @@ Referenciado desde `DEVELOPMENT.md` en el "Release Process" como paso 5 — bloq
 **Cobertura JaCoCo global:** 14.5% instrucciones, 9.2% branches. Métricas bajas porque solo cubrimos `EnrollmentManager` aún. Componentes pendientes de tests: `PasskeyAuth` facade, `FirebaseAuthBackend` (Firebase emulator), `FirestoreDeviceRegistry` (emulator), `AndroidKeyStoreManager` (instrumented), `SecureStorage` (Robolectric), `BiometricAuthenticator` (smoke manual).
 
 **Quirk de JaCoCo + coroutines:** `flow { ... }` builder genera clases sintéticas que aparecen como entradas separadas. La cobertura "por clase" del `EnrollmentManager` outer parece baja (13%) pero el grueso del código del orquestador vive en las clases sintéticas del flow body. Para cobertura realista, mirar el total acumulado y/o el HTML.
+
+### Patrón canónico: testar `object` singleton con `by lazy` (PasskeyAuthFacadeTest)
+
+`PasskeyAuth` es un singleton `object` con propiedades `by lazy { CompanionFactory() }`. Inyectar fakes sin tocar producción requiere truco:
+
+```kotlin
+@Before
+fun setUp() {
+    PasskeyAuth.reset()  // limpia estado del singleton
+
+    mockkObject(FirebaseAuthBackend.Companion)
+    every { FirebaseAuthBackend.createDefault() } returns mockBackend
+
+    mockkObject(KeyStoreManager.Companion)
+    every { KeyStoreManager.createDefault() } returns fakeKeyStoreManager
+    // ...
+}
+
+@After
+fun tearDown() {
+    unmockkAll()
+    PasskeyAuth.reset()
+}
+```
+
+**Para manipular estado interno privado** (timestamp para test de timeout, `_authState` para simular Authenticated):
+```kotlin
+val timestampField = PasskeyAuth::class.java.getDeclaredField("lastActivityTimestamp").apply {
+    isAccessible = true
+}
+timestampField.setLong(PasskeyAuth, System.currentTimeMillis() - (10L * 60_000))
+```
+
+**Restricciones importantes con este patrón:**
+
+1. **`initialize()` dispara `refreshAuthState()` async** en `scope.launch(Dispatchers.IO)` que no controlamos con `runTest`. Después de initialize, hacer `Thread.sleep(150)` antes de manipular `_authState` — si no, el refresh async sobreescribe nuestra manipulación.
+
+2. **`by lazy` solo evalúa UNA vez por proceso de test**, no por test. `PasskeyAuth.reset()` NO resetea el delegate. Tests que `coVerify` sobre el mock fresco de `@Before` pueden fallar porque el `by lazy` ya retornó el mock del test anterior. Workaround: `@Ignore` con justificación o cubrir vía smoke test instead.
+
+3. **`Dispatchers.IO`** usado por `scope.launch` interno del SDK NO se intercepta con `MainDispatcherRule` (que solo cubre `Dispatchers.Main`). Para tests que dependen de timing del IO, usar `Thread.sleep` (wall-clock) en lugar de `delay()` (virtual time de `runTest`).
 
 ### Plantilla canónica: patrones del happy path test
 
