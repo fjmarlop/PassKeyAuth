@@ -182,6 +182,47 @@ class KeyStoreManagerTest {
 .\gradlew.bat jacocoTestReport
 ```
 
+## Tooling de desarrollador asistido por IA (opcional)
+
+Estos tools son **opcionales y no afectan al build del SDK**. Acelerar el workflow del developer.
+
+### `mobiai` CLI (ya instalado en este repo)
+
+Provee skills de Android (build, testing, debugging, architecture) y Brain persistente per-proyecto en `.mobiai/`. Ver [README de MobiAI-Core](https://github.com/ArisGuimera/MobiAI-Core).
+
+```bash
+mobiai --version    # 0.2.3+
+mobiai status       # ver hosts y packs instalados
+mobiai brain context  # contexto del proyecto para el agente
+```
+
+### Android CLI (de Google, opcional, ver caveat Windows)
+
+[Android CLI 1.0](https://android-developers.googleblog.com/2026/05/android-cli-stable-1-0-agent-development.html) — CLI oficial de Google para developers usando agentes. Provee skills específicas, bridging con Android Studio (comando `studio`), y soporte de Journeys.
+
+**Instalación:** https://developer.android.com/tools/agents
+
+⚠️ **Caveat Windows (2026-06):** la descarga vía PowerShell **no está soportada** todavía según docs oficiales. En Windows, usar la descarga manual del binario.
+
+**Skills relevantes para PasskeyAuth si lo instalas:**
+
+| Skill | Por qué para este proyecto |
+|---|---|
+| `testing-setup` | Patrones canónicos de Google para test infrastructure. Comparar contra nuestro [ADR-011](docs/adr/011-testing-stack-and-strategy.md) para detectar gaps. |
+| `perfetto-sql` | Análisis de trazas. Útil para perfilar `AndroidKeyStoreManager.generateKey()` con StrongBox vs TEE — validar empíricamente las claims del [ADR-004](docs/adr/004-keystoremanager-aes-gcm.md). |
+| `credential-manager` | Reference para futura evaluación si migrar de `BiometricPrompt` directo a la API estándar de Credential Manager. Nuevo ADR si se aborda. |
+
+```bash
+# Una vez instalado el CLI:
+android skills list
+android skills add testing-setup perfetto-sql
+android init  # inicializa el skill "android-cli" para tu host de agentes
+```
+
+### Coexistencia con `mobiai`
+
+Ambos CLIs son compatibles. `mobiai` mantiene Brain per-proyecto y skills generales de mobile (Android + iOS + Flutter + KMP + RN); Android CLI provee skills oficiales de Google con bridging directo a Android Studio. Para este proyecto Android-only, usar ambos donde se solapen es redundante pero no conflictivo.
+
 ## Decisiones Arquitectonicas (ADRs)
 
 Toda decision importante debe documentarse en `docs/adr/`.
