@@ -322,6 +322,48 @@ when {
 
 ---
 
+## ADR-012: Custom Lint Rules para enforcing del contrato del SDK
+
+**Fecha:** 2026-06-12 · **Estado:** Aceptado
+
+**Contexto:** Tres ADRs (007, 009, README "Lifecycle Hooks") documentan requisitos del SDK que el consumer puede violar y producir bugs. Hoy solo viven en documentación — si el dev no la lee, los bugs entran en producción.
+
+**Decisión:** módulo nuevo `passkeyauth-lint` con 3 lint rules custom que detectan violaciones **en compile-time del consumer**:
+
+| Rule | Severidad | Detecta |
+|---|---|---|
+| `PasskeyAuthMissingFragmentActivity` | **ERROR** | `enrollDevice`/`authenticate` con Activity != FragmentActivity (ADR-007) |
+| `PasskeyAuthSkipBiometricNavigation` | **WARNING** | bug del SplashScreen — `if (isDeviceEnrolled) navigate*` sin `authenticate` (ADR-009) |
+| `PasskeyAuthMissingLifecycleHooks` | **WARNING** | `initialize()` sin `onAppForeground`+`onAppBackground` (rompe sessionTimeoutMinutes silenciosamente) |
+
+**Distribución:** `lintPublish(project(":passkeyauth-lint"))` en `passkeyauth-core` → consumers reciben las checks automáticamente con su `./gradlew lint`. Cero config extra.
+
+**Stack:**
+- Lint 32.0.0 (regla: AGP version + 23; AGP 9.0.0 → Lint 32.0.0)
+- Kotlin JVM-only (`org.jetbrains.kotlin.jvm`)
+- Tests con `LintDetectorTest` + `@RunWith(JUnit4::class)` (porque LintDetectorTest extiende `junit.framework.TestCase` JUnit 3)
+- Registry vía `Lint-Registry-v2` en JAR manifest
+
+**Gotchas descubiertos durante implementación (documentados en ADR-012):**
+1. **JUnit 3 vs 4:** sin `@RunWith(JUnit4)`, tests con nombres no `testXxx` se ignoran silenciosamente
+2. **`.allowMissingSdk()`:** tests JVM puros sin SDK fallan; añadirlo a cada `.run()`
+3. **`TestMode.REORDER_ARGUMENTS`:** detectores que asumen posición 0 fallan con named args. Usar `getArgumentForParameter` por nombre
+4. **`TestMode.WHITESPACE`:** text matching falla con whitespace extra. Usar `AbstractUastVisitor`
+5. **`TestMode.IF_TO_WHEN`:** convierte `if` en `when`. Skip con razón documentada para L2 (la forma `if` es la canónica del bug)
+6. **`lintPublish` requiere `isTransitive=false`:** sin esto kotlin-stdlib entra como segundo jar y falla `prepareLintJarForPublish`
+7. **Overload PsiElement/UElement ambiguo:** cast explícito `node as UElement` en `context.report`
+
+**Tests:** 12 tests verdes (4 por detector) cubriendo casos positivos y negativos.
+
+**Verificación:**
+- ✅ `./gradlew :passkeyauth-lint:test` → 12/12
+- ✅ `./gradlew assembleDebug` → full build con lint rules empaquetadas en core AAR
+- ✅ Sample app sigue compilando (las rules le aplican pero su código no las viola)
+
+**Plan evolución:** ADR-012 deja documentado cómo añadir más rules. Próximas candidatas: L4 (inicializaciones múltiples), L5 (`getCurrentUser` sin `authenticate` previo), soporte de `when` en L2.
+
+---
+
 ## ADR-011: Testing Stack and Infrastructure
 
 **Fecha:** 2026-05-31 · **Estado:** Aceptado

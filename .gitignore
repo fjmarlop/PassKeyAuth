@@ -58,3 +58,7 @@ Desktop.ini
 # === Otros ===
 proguard/
 lint/
+# Excepcion: el modulo passkeyauth-lint contiene codigo fuente intencional
+# en su paquete `lint/` (no confundir con output de Android lint).
+!passkeyauth-lint/src/**/lint/
+!passkeyauth-lint/src/**/lint/**
