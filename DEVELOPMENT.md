@@ -30,7 +30,7 @@ es.fjmarlop.corpsecauth.core/
 - Storage: 1
 - Enrollment: 1
 
-**Testing:** Unit tests + Integration tests (Robolectric) - Pendiente
+**Testing:** 73 tests JVM/Robolectric — ver `src/test/java/` y [ADR-011](docs/adr/011-testing-stack-and-strategy.md)
 
 #### passkeyauth-ui
 **Proposito:** Componentes Compose opcionales.
@@ -137,50 +137,70 @@ suspend fun enrollDevice(userId: String, password: String): Result<Unit> {
 
 ## Testing
 
-### Unit Tests (Pendiente)
-
-Ubicacion: `src/test/java/`
-```kotlin
-@Test
-fun `authenticate should return success when biometric succeeds`() = runTest {
-    // Given
-    val authenticator = BiometricAuthenticator(mockContext)
-    coEvery { mockBiometricPrompt.authenticate() } returns AuthResult.Success
-    
-    // When
-    val result = authenticator.authenticate()
-    
-    // Then
-    assertTrue(result.isSuccess)
-}
-```
-
-### Integration Tests (Pendiente)
-
-Ubicacion: `src/androidTest/java/`
-```kotlin
-@RunWith(RobolectricTestRunner::class)
-class KeyStoreManagerTest {
-    @Test
-    fun `should generate key in KeyStore`() {
-        val manager = KeyStoreManager(ApplicationProvider.getApplicationContext())
-        val result = manager.generateKey()
-        assertTrue(result.isSuccess)
-    }
-}
-```
+Pirámide de tests documentada en [ADR-011](docs/adr/011-testing-stack-and-strategy.md). CI ejecuta los dos primeros niveles en cada push.
 
 ### Ejecutar Tests
+
 ```bash
-# Unit tests
-.\gradlew.bat test
+# 1) JVM + Robolectric (73 tests, <30s) — ejecutados por CI
+.\gradlew.bat :passkeyauth-core:testDebugUnitTest
 
-# Android tests
-.\gradlew.bat connectedAndroidTest
+# 2) Lint rules (12 tests) — ejecutados por CI
+.\gradlew.bat :passkeyauth-lint:test
 
-# Con coverage
-.\gradlew.bat jacocoTestReport
+# 3) Instrumented en device físico (necesita dispositivo conectado)
+.\gradlew.bat :passkeyauth-core:connectedDebugAndroidTest
+
+# 4) Reporte de cobertura JaCoCo
+.\gradlew.bat :passkeyauth-core:jacocoTestReport
+# Reportes en passkeyauth-core/build/reports/jacoco/jacocoTestReport/
 ```
+
+### Niveles de Test
+
+| Nivel | Carpeta | Tests | Qué valida |
+|---|---|---|---|
+| JVM puro | `src/test/java/` | 22 | `EnrollmentManager`: happy path, rollback por paso, helpers, contratos de fakes |
+| Robolectric | `src/test/java/` (mismo runner) | 51 | `SecureStorage` con DataStore; `FirebaseAuthBackend` y `FirestoreDeviceRegistry` con MockK; facade `PasskeyAuth` |
+| Lint rules | `passkeyauth-lint/src/test/` | 12 | L1/L2/L3 — `FragmentActivity`, anti-pattern SplashScreen, lifecycle hooks |
+| Instrumented | `src/androidTest/java/` | 8–9/device | `AndroidKeyStoreManager` con StrongBox real vs TEE |
+
+### Patrones clave
+
+**Fakes vs Mocks:**
+- Usa **fakes** (`FakeKeyStoreManager`, `InMemoryDeviceRegistry`, `FakeBiometricAuthenticator`) para `EnrollmentManager` — comportamiento predecible sin dependencias de plataforma.
+- Usa **MockK** para `FirebaseAuthBackend` y `FirestoreDeviceRegistry` — mockear el SDK de Firebase directamente.
+
+**Firebase Tasks sincrónicos:**
+```kotlin
+// MockK dispara el callback sincrónicamente — suspendCoroutine completa sin suspender
+every { loginTask.addOnSuccessListener(any<OnSuccessListener<AuthResult>>()) } answers {
+    firstArg<OnSuccessListener<AuthResult>>().onSuccess(mockAuthResult)
+    loginTask
+}
+// Siempre mockear isCanceled=false — await() de kotlinx-coroutines-play-services lo consulta
+every { it.isCanceled } returns false
+```
+
+**Aislamiento del singleton `PasskeyAuth`:**
+```kotlin
+@Before fun setUp() {
+    PasskeyAuth.reset()                          // nulifica backing fields
+    mockkObject(FirebaseAuthBackend.Companion)
+    every { FirebaseAuthBackend.createDefault() } returns firebaseAuthBackendMock
+    // ... demás factories
+}
+@After fun tearDown() { unmockkAll(); PasskeyAuth.reset() }
+```
+
+### CI GitHub Actions
+
+Workflow en `.github/workflows/ci.yml`:
+- Trigger: push a cualquier rama + PR a `main`
+- JDK 17 Temurin + caché de Gradle (`gradle/actions/setup-gradle@v4`)
+- Dos pasos independientes: `:passkeyauth-core:testDebugUnitTest` + `:passkeyauth-lint:test`
+- HTML reports subidos como artifact en caso de fallo (7 días de retención)
+- `cancel-in-progress: true` para ahorrar minutos de runner en pushes obsoletos
 
 ## Tooling de desarrollador asistido por IA (opcional)
 
@@ -260,22 +280,9 @@ Toda decision importante debe documentarse en `docs/adr/`.
 - [ ] Input validation en boundary points
 - [ ] Error messages no revelan info de sistema
 
-### Security Tests (Pendiente)
+### Security Tests
 
-Ubicacion: `src/androidTest/java/security/`
-```kotlin
-@Test
-fun `keys should not be extractable from KeyStore`() {
-    val keyStore = KeyStore.getInstance("AndroidKeyStore")
-    keyStore.load(null)
-    val key = keyStore.getKey("test_alias", null)
-    
-    // Deberia lanzar excepcion porque las claves en KeyStore no son extractables
-    assertThrows<KeyStoreException> {
-        key.encoded
-    }
-}
-```
+Los tests de seguridad de `AndroidKeyStoreManager` (inextractibilidad de claves, aislamiento StrongBox vs TEE) están cubiertos por los tests instrumented en `src/androidTest/java/`. Ver [ADR-004](docs/adr/004-keystoremanager-aes-gcm.md) para la matriz de validación hardware.
 
 ## Release Process (Futuro)
 

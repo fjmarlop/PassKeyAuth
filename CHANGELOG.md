@@ -7,6 +7,48 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [0.2.1] - 2026-06-18
+
+### ✅ Testing Suite Completa
+
+Suite de tests automatizados completa para todo el SDK. CI integrado.
+
+#### Tests añadidos
+
+**`passkeyauth-core` — 73 tests JVM/Robolectric:**
+
+| Clase de test | Nivel | Tests | Qué valida |
+|---|---|---|---|
+| `EnrollmentManagerHappyPathTest` | JVM | 1 | Flujo completo de enrollment (plantilla de oro) |
+| `EnrollmentManagerRollbackTest` | JVM | 6 | Rollback automático en cada uno de los 6 pasos con fallos |
+| `EnrollmentManagerHelpersTest` | JVM | 10 | `isDeviceEnrolled`, `unenrollDevice` y helpers auxiliares |
+| `FakesSmokeTest` | JVM | 5 | Contratos de los fakes del SDK |
+| `SecureStorageRobolectricTest` | Robolectric | 12 | DataStore cifrado con `Context` real |
+| `FirebaseAuthBackendTest` | Robolectric | 12 | Adaptador Firebase Auth (callbacks sincrónicos con MockK) |
+| `FirestoreDeviceRegistryTest` | Robolectric | 11 | Adaptador Firestore device registry (cadena fluida mockeada) |
+| `PasskeyAuthFacadeTest` | Robolectric | 16 | Facade público: initialize, logout, session timeout, lifecycle |
+
+**`passkeyauth-lint` — 12 tests (ya en v0.2.0, documentado aquí para completitud):**
+
+| Regla | Tests | Qué valida |
+|---|---|---|
+| L1 `MissingFragmentActivity` | 4 | `FragmentActivity` obligatoria en `MainActivity` |
+| L2 `SkipBiometricNavigation` | 4 | Anti-pattern de saltar biometría en Splash |
+| L3 `MissingLifecycleHooks` | 4 | `onAppForeground`/`onAppBackground` obligatorios |
+
+#### CI GitHub Actions
+
+- Nuevo workflow `.github/workflows/ci.yml`
+- Ejecuta 85 tests en cada push y PR a `main`
+- Tiempo: ~1m 30s en `ubuntu-latest`
+- `concurrency: cancel-in-progress: true` — cancela runs obsoletos
+
+#### Fix técnico: `by lazy` no resettable en singleton
+
+`PasskeyAuth` usaba `by lazy` para las 5 propiedades de infraestructura (`firebaseAuthBackend`, `keyStoreManager`, `cryptoProvider`, `secureStorage`, `deviceRegistry`). `SynchronizedLazyImpl` evalúa permanentemente y `reset()` no podía nulificar los delegates — los tests del facade reutilizaban instancias entre tests. Fix: patrón _backing field nullable + getter_ en todas las propiedades diferidas del singleton.
+
+---
+
 ## [0.2.0] - 2026-01-23
 
 ### 🚨 BREAKING CHANGES
