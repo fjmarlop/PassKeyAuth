@@ -37,32 +37,33 @@ object PasskeyAuth {
     // Composicion root: una sola instancia Firebase sirve ambas capabilities
     // (autenticacion y gestion de password). Se expone como dos getters tipados
     // a las interfaces correspondientes (ver ADR-010 Path C).
-    private val firebaseAuthBackend: FirebaseAuthBackend by lazy {
-        FirebaseAuthBackend.createDefault()
-    }
+    //
+    // Estas propiedades usan el patron "backing field nullable + getter" en lugar
+    // de `by lazy` para que reset() pueda nulificarlas entre tests (ADR-011).
+    // La semantica es identica: inicializacion diferida en el primer acceso.
+    // Thread-safety: se asume acceso desde el hilo principal durante initialize().
+    private var _firebaseAuthBackend: FirebaseAuthBackend? = null
+    private val firebaseAuthBackend: FirebaseAuthBackend
+        get() = _firebaseAuthBackend ?: FirebaseAuthBackend.createDefault().also { _firebaseAuthBackend = it }
+
     private val authBackend: AuthBackend get() = firebaseAuthBackend
     private val passwordManagement: PasswordManagementBackend get() = firebaseAuthBackend
 
-    private val keyStoreManager: KeyStoreManager by lazy {
-        val cfg = config ?: PasskeyAuthConfig.Default
-        if (cfg.requireStrongBox) {
-            KeyStoreManager.createWithStrongBox()
-        } else {
-            KeyStoreManager.createDefault()
-        }
-    }
+    private var _keyStoreManager: KeyStoreManager? = null
+    private val keyStoreManager: KeyStoreManager
+        get() = _keyStoreManager ?: createKeyStoreManager().also { _keyStoreManager = it }
 
-    private val cryptoProvider: CryptoProvider by lazy {
-        CryptoProvider.createWithKeyStore(keyStoreManager)
-    }
+    private var _cryptoProvider: CryptoProvider? = null
+    private val cryptoProvider: CryptoProvider
+        get() = _cryptoProvider ?: CryptoProvider.createWithKeyStore(keyStoreManager).also { _cryptoProvider = it }
 
-    private val secureStorage: SecureStorage by lazy {
-        SecureStorage.create(requireContext())
-    }
+    private var _secureStorage: SecureStorage? = null
+    private val secureStorage: SecureStorage
+        get() = _secureStorage ?: SecureStorage.create(requireContext()).also { _secureStorage = it }
 
-    private val deviceRegistry: DeviceRegistry by lazy {
-        DeviceRegistry.create(requireContext())
-    }
+    private var _deviceRegistry: DeviceRegistry? = null
+    private val deviceRegistry: DeviceRegistry
+        get() = _deviceRegistry ?: DeviceRegistry.create(requireContext()).also { _deviceRegistry = it }
 
     private var lastActivityTimestamp: Long = System.currentTimeMillis()
     private var justAuthenticated: Boolean = false
@@ -387,10 +388,26 @@ object PasskeyAuth {
         )
     }
 
+    private fun createKeyStoreManager(): KeyStoreManager {
+        val cfg = config ?: PasskeyAuthConfig.Default
+        return if (cfg.requireStrongBox) {
+            KeyStoreManager.createWithStrongBox()
+        } else {
+            KeyStoreManager.createDefault()
+        }
+    }
+
     internal fun reset() {
         isInitialized = false
         appContext = null
         config = null
         _authState.value = AuthResult.Loading
+        // Nulificar backing fields para que el proximo acceso re-evalue las
+        // factories. Necesario para aislamiento de tests (ADR-011).
+        _firebaseAuthBackend = null
+        _keyStoreManager = null
+        _cryptoProvider = null
+        _secureStorage = null
+        _deviceRegistry = null
     }
 }
