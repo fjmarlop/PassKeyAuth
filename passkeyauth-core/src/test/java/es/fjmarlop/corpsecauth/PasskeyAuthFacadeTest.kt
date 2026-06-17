@@ -23,7 +23,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 
@@ -44,14 +43,10 @@ import org.junit.Test
  * // ahora PasskeyAuth.firebaseAuthBackend === fakeBackend
  * ```
  *
- * **Limitacion conocida:** las propiedades `by lazy` SOLO se evaluan una vez
- * por instancia del singleton. `PasskeyAuth.reset()` limpia el estado pero NO
- * resetea los lazy. Para tests aislados completos hariamos falta cambiar
- * `by lazy` por `lateinit var` o un Holder mutable — fuera de scope. Para
- * este fichero, los tests que NO dependen del estado de lazy (lifecycle,
- * isAuthenticated, invalidateSession, requireInitialized) son robustos; los
- * que SI dependen (logout, unenrollDevice) usan la primera resolucion de
- * lazy y verifican el side-effect.
+ * **Aislamiento entre tests:** `PasskeyAuth.reset()` nulifica los backing
+ * fields de las propiedades diferidas (patron resettable implementado en
+ * produccion para soportar testing — ADR-011). Cada `@Before` recibe
+ * factories frescas interceptadas por MockK.
  */
 internal class PasskeyAuthFacadeTest {
 
@@ -325,30 +320,17 @@ internal class PasskeyAuthFacadeTest {
     // logout
     // ============================================================
 
-    /**
-     * SKIPPED: limitacion conocida del patron mockkObject + by lazy.
-     *
-     * `logout` toca `secureStorage.clearToken()` y `authBackend.signOut()`. El
-     * primer test del fichero que dispare un by-lazy fija la instancia mock
-     * dentro de la propiedad delegada del singleton. Tests posteriores reciben
-     * mocks frescos en sus `@Before`, pero la propiedad sigue usando la
-     * resolucion antigua → `coVerify` sobre el mock nuevo falla.
-     *
-     * Para arreglarlo habria que: (a) resetear el `xxx${'$'}delegate` via reflection,
-     * (b) refactorizar PasskeyAuth para inyectar dependencias en `initialize()`,
-     * o (c) testearlo con Robolectric + emulator suite reales. Las tres opciones
-     * son fuera de scope de este PR.
-     *
-     * **Cobertura alternativa:** el escenario S7 ("Logout y re-enrollment") del
-     * checklist [MANUAL-SMOKE-TEST.md](../../../../../../../docs/MANUAL-SMOKE-TEST.md)
-     * valida este flujo en device fisico real.
-     */
     @Test
-    @Ignore("Limitacion mockkObject + by lazy; cubierto por smoke test S7. Ver KDoc.")
     fun `cuando logout entonces limpia token, sign out y authState Unauthenticated`() = runTest {
         PasskeyAuth.initialize(contextMock, PasskeyAuthConfig.Default).getOrThrow()
+
         PasskeyAuth.logout()
-        kotlinx.coroutines.delay(100)
+
+        // logout() dispara un scope.launch en Dispatchers.IO (fire-and-forget).
+        // Thread.sleep espera en wall-clock a que el hilo IO complete —
+        // mismo patron que usan otros tests de este fichero para refreshAuthState.
+        Thread.sleep(200)
+
         coVerify(atLeast = 1) { secureStorageMock.clearToken() }
         coVerify(atLeast = 1) { firebaseAuthBackendMock.signOut() }
         assertThat(PasskeyAuth.authState.value).isEqualTo(AuthResult.Unauthenticated)
