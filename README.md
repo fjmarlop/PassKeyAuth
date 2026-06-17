@@ -3,13 +3,14 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-blue.svg)](https://kotlinlang.org)
-[![Tests](https://img.shields.io/badge/Tests-24%20JVM%2FRobolectric%20%2B%208%20instrumented-brightgreen.svg)](docs/adr/011-testing-stack-and-strategy.md)
+[![Tests](https://img.shields.io/badge/Tests-73%20JVM%2FRobolectric%20%2B%2012%20lint%20%2B%208%20instrumented-brightgreen.svg)](docs/adr/011-testing-stack-and-strategy.md)
+[![CI](https://github.com/fjmarlop/PassKeyAuth/actions/workflows/ci.yml/badge.svg)](https://github.com/fjmarlop/PassKeyAuth/actions/workflows/ci.yml)
 
 Librería Android para autenticación sin contraseñas usando biometría hardware-backed y Firebase, diseñada para entornos enterprise con modelo "1 user = 1 device".
 
 ## 🎯 Estado del Proyecto
 
-**Versión actual:** 0.2.0-alpha
+**Versión actual:** 0.2.1-alpha
 
 ### ✅ Completado
 - [x] Arquitectura multi-módulo con interfaces internas para testabilidad
@@ -18,15 +19,14 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 - [x] Passwordless REAL (sin password de usuario)
 - [x] Session timeout configurable
 - [x] Sample app funcional
-- [x] **Suite de tests automatizados:** 24 unit/Robolectric + 8 instrumented por device (matriz StrongBox + TEE validada en hardware real)
+- [x] **Suite de tests automatizados completa:** 73 JVM/Robolectric (EnrollmentManager, SecureStorage, `FirebaseAuthBackend`, `FirestoreDeviceRegistry`, facade `PasskeyAuth`) + 12 lint rules + 8 instrumented (StrongBox + TEE)
+- [x] **GitHub Actions CI:** `.github/workflows/ci.yml` — 85 tests en &lt;2 min, cancela runs obsoletos automáticamente
 - [x] **Manual smoke test checklist** para release (10 escenarios E2E con BiometricPrompt)
-- [x] 11 ADRs documentados
+- [x] 12 ADRs documentados
 - [x] Documentación exhaustiva
 
 ### 🚧 En Desarrollo
-- [ ] Tests con Firebase emulator suite (`FirebaseAuthBackend`, `FirestoreDeviceRegistry`)
-- [ ] Tests del facade `PasskeyAuth` y métodos auxiliares de `EnrollmentManager`
-- [ ] Security hardening (root detection, etc)
+- [ ] Security hardening (root detection, certificate pinning, etc)
 - [ ] Maven Central publishing
 
 ---
@@ -381,29 +381,37 @@ PasskeyAuthConfig.Custom(
 
 ### Tests
 
-El SDK tiene una pirámide de tests con tres niveles diferenciados según lo que cada uno puede validar de forma fiable. Estrategia documentada en [ADR-011](docs/adr/011-testing-stack-and-strategy.md).
+El SDK tiene una pirámide de tests con cuatro niveles. Estrategia documentada en [ADR-011](docs/adr/011-testing-stack-and-strategy.md).
 
 ```bash
-# 1) Tests JVM + Robolectric (rápidos, <12s) — orquestador, fakes, SecureStorage
-.\gradlew.bat passkeyauth-core:testDebugUnitTest
+# 1) JVM + Robolectric (73 tests, <30s) — CI los ejecuta en cada push
+.\gradlew.bat :passkeyauth-core:testDebugUnitTest
 
-# 2) Tests instrumented en device físico — AndroidKeyStore real, StrongBox/TEE
-.\gradlew.bat passkeyauth-core:connectedDebugAndroidTest
+# 2) Lint rules (12 tests)
+.\gradlew.bat :passkeyauth-lint:test
 
-# 3) Reporte de cobertura JaCoCo
-.\gradlew.bat passkeyauth-core:jacocoTestReport
+# 3) Instrumented en device físico — AndroidKeyStore real, StrongBox/TEE
+.\gradlew.bat :passkeyauth-core:connectedDebugAndroidTest
+
+# 4) Reporte de cobertura JaCoCo
+.\gradlew.bat :passkeyauth-core:jacocoTestReport
 # Reportes en passkeyauth-core/build/reports/jacoco/jacocoTestReport/
 ```
 
-**Cobertura actual:**
+**Los pasos 1 y 2 se ejecutan automáticamente en GitHub Actions** (ver [`.github/workflows/ci.yml`](.github/workflows/ci.yml)) en cada push y cada PR a `main`.
+
+**Pirámide de tests:**
 
 | Nivel | Qué valida | Tests |
 |---|---|---|
-| JVM puro | Orquestador transaccional, mappers de errores, fakes | 12 (`EnrollmentManager` happy path + matriz completa de rollback para los 6 pasos) |
-| Robolectric | `SecureStorage` + DataStore con `Context` real | 12 |
-| Instrumented (device físico) | `AndroidKeyStoreManager` real con StrongBox vs TEE | 8-9 por device (matriz **ADR-004 validada al 100%** con device A con StrongBox + device B sin StrongBox) |
+| JVM puro | `EnrollmentManager`: orquestador transaccional, rollback, helpers de enrollment; fakes | 22 (1 golden · 6 rollback · 10 helpers · 5 fakes smoke) |
+| Robolectric | `SecureStorage` + DataStore; adaptadores Firebase (`FirebaseAuthBackend`, `FirestoreDeviceRegistry`); facade `PasskeyAuth` | 51 (12 · 12 · 11 · 16) |
+| Lint rules | Contratos del SDK: `FragmentActivity`, anti-pattern SplashScreen, lifecycle hooks obligatorios | 12 (L1/L2/L3) |
+| Instrumented (device físico) | `AndroidKeyStoreManager` real con StrongBox vs TEE | 8–9 por device (matriz **ADR-004 validada al 100%**) |
 
-**Smoke test manual antes de release:** ver [`docs/MANUAL-SMOKE-TEST.md`](docs/MANUAL-SMOKE-TEST.md) — 10 escenarios E2E con BiometricPrompt real que los tests automatizados no pueden cubrir (interacción física con el sensor biométrico, cambio de huella, lockout, revocación remota, etc.).
+**Total automatizado en CI:** 85 tests (73 JVM/Robolectric + 12 lint).
+
+**Smoke test manual antes de release:** ver [`docs/MANUAL-SMOKE-TEST.md`](docs/MANUAL-SMOKE-TEST.md) — 10 escenarios E2E con BiometricPrompt real que los tests automatizados no pueden cubrir (sensor biométrico, cambio de huella, lockout, revocación remota, etc.).
 
 ---
 
@@ -411,8 +419,8 @@ El SDK tiene una pirámide de tests con tres niveles diferenciados según lo que
 
 - [x] **v0.1.0** — Core SDK + Arquitectura
 - [x] **v0.2.0** — Passwordless real + Session timeout + Fixes
-- [x] **v0.2.x** — Testing foundation: interfaces internas, fakes, suite de 24 tests JVM/Robolectric + matriz instrumented ADR-004, manual smoke test checklist
-- [ ] **v0.3.0** — Tests Firebase emulator + facade `PasskeyAuth` + security hardening (root detection, etc)
+- [x] **v0.2.x** — Testing foundation completa: 73 JVM/Robolectric + 12 lint + 8 instrumented · CI GitHub Actions · Facade `PasskeyAuth` testeado · Firebase adapters MockK · ADR-004 matriz validada en hardware
+- [ ] **v0.3.0** — Security hardening (root detection, certificate pinning, etc)
 - [ ] **v0.4.0** — Backend-agnostic: segundo backend de referencia (Keycloak o custom) usando las interfaces `AuthBackend` / `DeviceRegistry`
 - [ ] **v1.0.0** — Maven Central + Producción ready
 
@@ -420,12 +428,13 @@ El SDK tiene una pirámide de tests con tres niveles diferenciados según lo que
 
 ## 📊 Estadísticas
 
-**Versión 0.2.0-alpha:**
-- ADRs documentados: 11
-- Tests automatizados verdes: 24 JVM/Robolectric + 8–9 instrumented por device físico
-- Matriz hardware validada: device con StrongBox + device con TEE only
-- Bugs latentes detectados por los tests y resueltos: 2 (rollback paso 5, comentario engañoso en `EnrollmentManager`)
-- Cleanup técnico aplicado: migración `android.util.Base64` → `java.util.Base64` (portabilidad JVM)
+**Versión 0.2.1-alpha:**
+- ADRs documentados: 12
+- Tests automatizados verdes en CI: 73 JVM/Robolectric + 12 lint = **85 automáticos**
+- Tests instrumented en hardware: 8–9 por device (StrongBox + TEE)
+- CI GitHub Actions: 85 tests en &lt;2 min, cancela runs obsoletos
+- Bugs latentes detectados y resueltos por los tests: 3 (rollback paso 5, comentario engañoso en `EnrollmentManager`, reset `by lazy` en singleton)
+- Cleanup técnico: migración `android.util.Base64` → `java.util.Base64` (portabilidad JVM)
 
 ---
 
