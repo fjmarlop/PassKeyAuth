@@ -33,17 +33,22 @@ es.fjmarlop.corpsecauth.core/
 **Testing:** 73 tests JVM/Robolectric — ver `src/test/java/` y [ADR-011](docs/adr/011-testing-stack-and-strategy.md)
 
 #### passkeyauth-ui
-**Proposito:** Componentes Compose opcionales.
+**Proposito:** Componentes Compose opcionales. **Modelo híbrido** (ADR-014): composables primitivos personalizables + launcher fino de una línea. La UI es secundaria — servicio para el dev + first-run experience que vende el core.
 
-**Paquetes (en desarrollo):**
+**Paquetes (planificados — ver plan de implementación):**
 ```
 es.fjmarlop.corpsecauth.ui/
-â”œâ”€â”€ components/         # Componentes reutilizables
-â”œâ”€â”€ screens/            # Pantallas completas (Enrollment, Auth)
-â””â”€â”€ theme/              # Temas y colores
+├── theme/              # PasskeyAuthTheme (CompositionLocal), colores zero-config, branding
+├── signin/             # PasskeySignInScreen + scaffold dirigido por 6 estados
+├── enroll/             # PasskeyEnrollScreen (mapea EnrollmentState)
+└── launcher/           # ActivityResultContract híbrido (integración de 1 línea)
 ```
 
-**Testing:** Compose UI tests - Pendiente
+**Estado:** scaffolded (build.gradle con Compose, depende de core) pero vacío de Kotlin. Diseño cerrado en [ADR-014](docs/adr/014-ui-module-hybrid-integration.md), sobre el contrato de core de [ADR-013](docs/adr/013-non-negotiable-security-invariants.md). Plan task-by-task en [`docs/plans/2026-06-20-passkeyauth-ui-module.md`](docs/plans/2026-06-20-passkeyauth-ui-module.md).
+
+**Theming:** zero-config deriva de `MaterialTheme.colorScheme` (se mimetiza con la app); override explícito vía `PasskeyAuthTheme(colors = ..., branding = ...)`. Logo como slot `Painter?`, nunca resource hardcodeado.
+
+**Testing:** Compose UI test (Robolectric) — valida qué CTA aparece por estado, no píxeles.
 
 #### sample
 **Proposito:** App de demostracion y validacion.
@@ -269,6 +274,8 @@ Toda decision importante debe documentarse en `docs/adr/`.
 - ADR-010: Internal Abstractions for Testability and Backend Independence
 - ADR-011: Testing Stack and Infrastructure (JUnit 4 + MockK + Truth + Turbine + JaCoCo)
 - ADR-012: Custom Lint Rules para enforcing del contrato del SDK (FragmentActivity, SplashScreen anti-pattern, lifecycle hooks)
+- ADR-013: Invariantes de seguridad no negociables y contrato de PasskeyAuthConfig (checkCapability + fusión de config)
+- ADR-014: Módulo passkeyauth-ui — integración híbrida, theming zero-config y 6 estados
 
 ## Seguridad
 
