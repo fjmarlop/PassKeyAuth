@@ -402,7 +402,7 @@ object PasskeyAuth {
 
     private fun createKeyStoreManager(): KeyStoreManager {
         val cfg = config ?: PasskeyAuthConfig.Default
-        return if (cfg.requireStrongBox) {
+        return if (cfg.strongBox == StrongBoxPolicy.Required) {
             KeyStoreManager.createWithStrongBox()
         } else {
             KeyStoreManager.createDefault()
