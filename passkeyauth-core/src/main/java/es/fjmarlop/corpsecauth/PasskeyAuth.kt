@@ -1,8 +1,10 @@
 package es.fjmarlop.corpsecauth
 
 import android.content.Context
+import androidx.biometric.BiometricManager
 import androidx.fragment.app.FragmentActivity
 import es.fjmarlop.corpsecauth.core.auth.BiometricAuthenticator
+import es.fjmarlop.corpsecauth.core.auth.mapCanAuthenticateToCapability
 import es.fjmarlop.corpsecauth.core.crypto.CryptoProvider
 import es.fjmarlop.corpsecauth.core.crypto.EncryptedData
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
@@ -71,6 +73,16 @@ object PasskeyAuth {
     private val _authState = MutableStateFlow<AuthResult>(AuthResult.Loading)
     
     val authState: StateFlow<AuthResult> = _authState.asStateFlow()
+
+    /**
+     * Consulta no-lanzante del estado de capacidad biométrica.
+     * La UI dirige estados leyendo esto, sin capturar excepciones. Ver ADR-013.
+     */
+    fun checkCapability(context: Context): PasskeyCapability {
+        val code = BiometricManager.from(context)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        return mapCanAuthenticateToCapability(code)
+    }
 
     suspend fun initialize(
         context: Context,
