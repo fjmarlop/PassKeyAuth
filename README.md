@@ -351,12 +351,14 @@ PasskeyAuthConfig.Custom(
 ## 📚 Documentación
 
 - **[Guía de Seguridad](SECURITY.md)** — Mejores prácticas y checklist
-- **[ADRs](docs/adr/)** — 11 decisiones arquitectónicas documentadas, incluyendo:
+- **[ADRs](docs/adr/)** — 14 decisiones arquitectónicas documentadas, incluyendo:
   - [ADR-004](docs/adr/004-keystoremanager-aes-gcm.md) AES-256-GCM y StrongBox optional
   - [ADR-006](docs/adr/006-enrollmentmanager-transactional.md) EnrollmentManager transaccional
   - [ADR-009](docs/adr/009-client-side-security-responsibility.md) Responsabilidad del cliente
   - [ADR-010](docs/adr/010-internal-abstractions-for-testability.md) Interfaces internas para testabilidad y backend-independence
   - [ADR-011](docs/adr/011-testing-stack-and-strategy.md) Stack de testing y estrategia
+  - [ADR-013](docs/adr/013-non-negotiable-security-invariants.md) Invariantes de seguridad no negociables + contrato `PasskeyAuthConfig`
+  - [ADR-014](docs/adr/014-ui-module-hybrid-integration.md) Módulo UI: integración híbrida, theming y estados
 - **[Manual Smoke Test](docs/MANUAL-SMOKE-TEST.md)** — Checklist de release (10 escenarios E2E con BiometricPrompt real)
 - **[CHANGELOG](CHANGELOG.md)** — Historial de versiones
 - **[DEVELOPMENT](DEVELOPMENT.md)** — Guía para desarrolladores
@@ -420,7 +422,7 @@ El SDK tiene una pirámide de tests con cuatro niveles. Estrategia documentada e
 - [x] **v0.1.0** — Core SDK + Arquitectura
 - [x] **v0.2.0** — Passwordless real + Session timeout + Fixes
 - [x] **v0.2.x** — Testing foundation completa: 73 JVM/Robolectric + 12 lint + 8 instrumented · CI GitHub Actions · Facade `PasskeyAuth` testeado · Firebase adapters MockK · ADR-004 matriz validada en hardware
-- [ ] **v0.3.0** — Security hardening (root detection, certificate pinning, etc)
+- [ ] **v0.3.0** — Módulo `passkeyauth-ui`: integración híbrida (composables + launcher), theming zero-config, `checkCapability()` + fusión de `PasskeyAuthConfig` (ADR-013/ADR-014). Security hardening (root detection, certificate pinning)
 - [ ] **v0.4.0** — Backend-agnostic: segundo backend de referencia (Keycloak o custom) usando las interfaces `AuthBackend` / `DeviceRegistry`
 - [ ] **v1.0.0** — Maven Central + Producción ready
 
