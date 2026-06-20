@@ -2,4 +2,15 @@
 <resources>
     <string name="enrollment_title">Configurar Autenticacion</string>
     <string name="biometric_prompt_title">Verificacion Biometrica</string>
+    <string name="passkey_signin_title">Acceso seguro</string>
+    <string name="passkey_signin_subtitle">Usa tu biometría para entrar</string>
+    <string name="passkey_signin_cta">Acceder</string>
+    <string name="passkey_loading">Esperando confirmación…</string>
+    <string name="passkey_error_retry">Reintentar</string>
+    <string name="passkey_not_enrolled_title">Configura tu acceso</string>
+    <string name="passkey_not_enrolled_subtitle">Registra tu huella o rostro para continuar</string>
+    <string name="passkey_not_enrolled_cta">Configurar biometría</string>
+    <string name="passkey_no_hardware_title">Dispositivo no compatible</string>
+    <string name="passkey_no_hardware_subtitle">Este dispositivo no admite autenticación biométrica fuerte</string>
+    <string name="passkey_host_fallback_cta">Usar otro método</string>
 </resources>
