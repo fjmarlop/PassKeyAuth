@@ -1,2 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+            Activity interna del launcher híbrido (ADR-014).
+            No forma parte de la API pública — el integrador usa PasskeyAuthContract.
+        -->
+        <activity
+            android:name=".ui.launcher.PasskeyAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
+    </application>
+
+</manifest>
