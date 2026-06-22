@@ -69,20 +69,18 @@ fun AppNavigation(
         }
 
         composable(Screen.Login.route) {
-            LoginScreen(
-                viewModel = viewModel,
-                onNavigateToHome = {
+            val activity = LocalContext.current as FragmentActivity
+            SdkSignInDemoScreen(
+                activity = activity,
+                onAuthenticated = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
-                onNavigateToEnrollment = {
+                onBack = {
                     navController.navigate(Screen.Enrollment.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                },
-                onNavigateToSdkDemo = {
-                    navController.navigate(Screen.SdkUiDemo.route)
                 },
             )
         }
