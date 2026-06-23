@@ -84,7 +84,7 @@ fun AppNavigation(
                     email = email,
                     temporaryPassword = password,
                     onEnrolled = {
-                        navController.navigate(Screen.Login.route) {
+                        navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Credentials.route) { inclusive = true }
                         }
                     },
