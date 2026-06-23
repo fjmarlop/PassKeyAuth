@@ -143,6 +143,13 @@ fun PasskeySignInScaffold(
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
+                // Escape hatch en estado de error: evita el bucle de reintentos sin salida
+                if (allowHostFallback && state is PasskeyUiState.Error) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = onHostFallback) {
+                        Text(stringResource(R.string.passkey_host_fallback_cta))
+                    }
+                }
             }
         }
 

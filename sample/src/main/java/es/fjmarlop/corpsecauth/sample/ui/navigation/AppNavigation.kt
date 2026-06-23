@@ -97,9 +97,15 @@ fun AppNavigation(
             PasskeyAuthTheme {
                 PasskeySignInScreen(
                     activity = activity,
-                    config = PasskeyAuthConfig.Default,
+                    config = PasskeyAuthConfig.Custom(allowHostFallback = true),
                     onAuthenticated = {
                         navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onHostFallback = {
+                        // El dispositivo quedó desenrolado (p.ej. tras logout): ir a credenciales
+                        navController.navigate(Screen.Credentials.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     },
@@ -111,7 +117,8 @@ fun AppNavigation(
             HomeScreen(
                 viewModel = viewModel,
                 onNavigateToLogin = {
-                    navController.navigate(Screen.Login.route) {
+                    // Logout borra el enrollment → redirigir a credenciales, no a login
+                    navController.navigate(Screen.Credentials.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 },
