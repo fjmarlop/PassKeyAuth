@@ -21,7 +21,7 @@ class SampleApplication : Application() {
         ProcessLifecycleOwner.get().lifecycleScope.launch {
             PasskeyAuth.initialize(
                 context = this@SampleApplication,
-                config = PasskeyAuthConfig.Custom(false,1) // Logs habilitados para desarrollo
+                config = PasskeyAuthConfig.Custom(sessionTimeoutMinutes = 1)
             ).onSuccess {
                 println("✅ SampleApp: PasskeyAuth inicializado")
             }.onFailure { error ->

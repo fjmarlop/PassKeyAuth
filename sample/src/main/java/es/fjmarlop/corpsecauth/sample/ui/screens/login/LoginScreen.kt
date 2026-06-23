@@ -16,7 +16,8 @@ import es.fjmarlop.corpsecauth.sample.ui.viewmodel.AuthViewModel
 fun LoginScreen(
     viewModel: AuthViewModel,
     onNavigateToHome: () -> Unit,
-    onNavigateToEnrollment: () -> Unit
+    onNavigateToEnrollment: () -> Unit,
+    onNavigateToSdkDemo: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as FragmentActivity
@@ -102,6 +103,10 @@ fun LoginScreen(
 
         TextButton(onClick = onNavigateToEnrollment) {
             Text("¿Primer uso? Registra tu dispositivo")
+        }
+
+        TextButton(onClick = onNavigateToSdkDemo) {
+            Text("Probar UI del SDK (passkeyauth-ui)")
         }
     }
 }

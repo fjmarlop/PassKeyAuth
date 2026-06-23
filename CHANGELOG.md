@@ -7,6 +7,35 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [Unreleased] — v0.3.0
+
+### ✨ Módulo `passkeyauth-ui` + Core foundations (ADR-013/014)
+
+#### Core (`passkeyauth-core`)
+
+- **`StrongBoxPolicy`** enum (`Preferred` / `Required`) — reemplaza `requireStrongBox: Boolean`
+- **`RecoveryHandler`** fun interface — recuperación auditable server-side (null = sin recovery in-app)
+- **`PasskeyCapability`** sealed interface (`Ready` / `NotEnrolled` / `NoHardware` / `TemporarilyUnavailable` / `SecurityUpdateRequired`)
+- **`PasskeyAuth.checkCapability(context)`** — consulta no-lanzante del estado biométrico (la UI lee esto antes de mostrar CTAs)
+- **`PasskeyAuthConfig` fusionado** — añade `allowHostFallback`, `strongBox`, `recovery`; conserva `sessionTimeoutMinutes`; `requireStrongBox` deprecado con compat property
+
+#### UI (`passkeyauth-ui`) — nuevo módulo
+
+- **`PasskeyAuthTheme`** — zero-config deriva de `MaterialTheme.colorScheme`; `CompositionLocal` para tokens
+- **`PasskeyAuthColors`** / **`PasskeyAuthBranding`** — 5 tokens de color + slot `logo: Painter?` (nunca resource hardcodeado)
+- **`PasskeyUiState`** — 6 estados (`Idle` / `Loading` / `Error` / `Success` / `NotEnrolled` / `NoHardware`) + factory `from(PasskeyCapability)`
+- **`PasskeySignInScaffold`** — UI pura dirigida por estado con slots `header`/`footer` (escape hatch)
+- **`PasskeySignInScreen`** — composable primitivo: cablea capability + ceremonia biométrica
+- **`PasskeyEnrollScreen`** — composable primitivo: mapea `EnrollmentState` al scaffold
+- **`PasskeyAuthContract`** + **`PasskeyAuthResult`** — launcher híbrido de una línea vía `ActivityResultContract`
+- i18n: 11 strings sobrescribibles por el host en `strings.xml`
+
+#### Sample
+
+- Pantalla demo `SdkSignInDemoScreen` con `PasskeySignInScreen` zero-config accesible desde `LoginScreen`
+
+---
+
 ## [0.2.1] - 2026-06-18
 
 ### ✅ Testing Suite Completa

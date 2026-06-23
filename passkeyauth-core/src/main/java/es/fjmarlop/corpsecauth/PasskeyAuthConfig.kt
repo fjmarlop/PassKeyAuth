@@ -1,89 +1,51 @@
 package es.fjmarlop.corpsecauth
 
 /**
- * Configuracion de PasskeyAuth SDK.
+ * Configuración de PasskeyAuth SDK: seguridad y política de integración.
  *
- * Define el comportamiento del SDK en cuanto a seguridad y timeouts.
+ * Invariantes NO configurables — son la garantía del SDK, no un knob (ADR-013):
+ *  · Verificación = BIOMETRIC_STRONG. Nunca DEVICE_CREDENTIAL en la ceremonia.
+ *  · Claves hardware-backed (StrongBox → TEE). No existe modo software.
+ *  · Sin setUserAuthenticationValidityDurationSeconds con ventana.
  *
- * @property requireStrongBox Si true, requiere StrongBox (falla si no disponible).
- *                            Si false, intenta StrongBox con fallback a TEE.
- * @property sessionTimeoutMinutes Minutos de inactividad antes de requerir biometria.
- *                                 - 0: Siempre pide biometria (maxima seguridad)
- *                                 - 5: Pide biometria despues de 5 min en background
- *                                 - -1: Nunca invalida sesion (solo para testing)
+ * @property allowHostFallback Si true, cuando el SDK no puede operar (NoHardware)
+ *   ofrece devolver el control al login propio del host. Default estricto: false.
+ * @property strongBox Política de hardware. Reemplaza requireStrongBox.
+ * @property recovery Recuperación controlada y auditable. null = sin recuperación in-app.
+ * @property sessionTimeoutMinutes Minutos de inactividad antes de re-pedir biometría.
+ *   0 = siempre pide; >0 = ventana; -1 = nunca invalida (solo testing).
  */
 sealed class PasskeyAuthConfig(
-    val requireStrongBox: Boolean,
-    val sessionTimeoutMinutes: Int
+    val allowHostFallback: Boolean,
+    val strongBox: StrongBoxPolicy,
+    val recovery: RecoveryHandler?,
+    val sessionTimeoutMinutes: Int,
 ) {
-    
-    /**
-     * Configuracion por defecto para produccion.
-     *
-     * - StrongBox opcional (fallback a TEE)
-     * - Session timeout: 2 minutos
-     *
-     * Balance entre seguridad y UX.
-     */
+    /** Compat: derivado de [strongBox]. Ver ADR-013. */
+    @Deprecated("Usa strongBox: StrongBoxPolicy", ReplaceWith("strongBox"))
+    val requireStrongBox: Boolean get() = strongBox == StrongBoxPolicy.Required
+
+    /** Producción: StrongBox opcional (TEE fallback), timeout 2 min, modo blindado. */
     object Default : PasskeyAuthConfig(
-        requireStrongBox = false,
-        sessionTimeoutMinutes = 2
+        allowHostFallback = false,
+        strongBox = StrongBoxPolicy.Preferred,
+        recovery = null,
+        sessionTimeoutMinutes = 2,
     )
-    
-    /**
-     * Configuracion para debugging.
-     *
-     * - StrongBox opcional (fallback a TEE)
-     * - Session timeout: 0 (siempre pide biometria)
-     *
-     * Maxima seguridad, util para desarrollo.
-     */
+
+    /** Debugging: timeout 0 (siempre pide biometría). */
     object Debug : PasskeyAuthConfig(
-        requireStrongBox = false,
-        sessionTimeoutMinutes = 0
+        allowHostFallback = false,
+        strongBox = StrongBoxPolicy.Preferred,
+        recovery = null,
+        sessionTimeoutMinutes = 0,
     )
-    
-    /**
-     * Configuracion personalizada.
-     *
-     * Permite ajustar todos los parametros segun necesidades.
-     *
-     * Ejemplos de uso:
-     *
-     * App bancaria (maxima seguridad):
-     * ```kotlin
-     * PasskeyAuthConfig.Custom(
-     *     requireStrongBox = true,
-     *     sessionTimeoutMinutes = 0  // Siempre pide
-     * )
-     * ```
-     *
-     * App corporativa (balance):
-     * ```kotlin
-     * PasskeyAuthConfig.Custom(
-     *     sessionTimeoutMinutes = 5  // 5 minutos
-     * )
-     * ```
-     *
-     * App casual (relajado):
-     * ```kotlin
-     * PasskeyAuthConfig.Custom(
-     *     sessionTimeoutMinutes = 15  // 15 minutos
-     * )
-     * ```
-     *
-     * Testing (sin timeout):
-     * ```kotlin
-     * PasskeyAuthConfig.Custom(
-     *     sessionTimeoutMinutes = -1  // Sin timeout
-     * )
-     * ```
-     *
-     * @param requireStrongBox Si requiere StrongBox obligatorio
-     * @param sessionTimeoutMinutes Minutos antes de invalidar sesion
-     */
+
+    /** Configuración personalizada con defaults estrictos. */
     class Custom(
-        requireStrongBox: Boolean = false,
-        sessionTimeoutMinutes: Int = 5
-    ) : PasskeyAuthConfig(requireStrongBox, sessionTimeoutMinutes)
+        allowHostFallback: Boolean = false,
+        strongBox: StrongBoxPolicy = StrongBoxPolicy.Preferred,
+        recovery: RecoveryHandler? = null,
+        sessionTimeoutMinutes: Int = 5,
+    ) : PasskeyAuthConfig(allowHostFallback, strongBox, recovery, sessionTimeoutMinutes)
 }

@@ -8,6 +8,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import es.fjmarlop.corpsecauth.core.models.AuthResult
+import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
+import es.fjmarlop.corpsecauth.sample.ui.screens.demo.SdkSignInDemoScreen
 import es.fjmarlop.corpsecauth.sample.ui.screens.enrollment.EnrollmentScreen
 import es.fjmarlop.corpsecauth.sample.ui.screens.home.HomeScreen
 import es.fjmarlop.corpsecauth.sample.ui.screens.login.LoginScreen
@@ -19,6 +22,7 @@ sealed class Screen(val route: String) {
     object Enrollment : Screen("enrollment")
     object Login : Screen("login")
     object Home : Screen("home")
+    object SdkUiDemo : Screen("sdk_ui_demo")
 }
 
 @Composable
@@ -65,18 +69,19 @@ fun AppNavigation(
         }
 
         composable(Screen.Login.route) {
-            LoginScreen(
-                viewModel = viewModel,
-                onNavigateToHome = {
+            val activity = LocalContext.current as FragmentActivity
+            SdkSignInDemoScreen(
+                activity = activity,
+                onAuthenticated = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
-                onNavigateToEnrollment = {
+                onBack = {
                     navController.navigate(Screen.Enrollment.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                }
+                },
             )
         }
 
@@ -88,6 +93,19 @@ fun AppNavigation(
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Screen.SdkUiDemo.route) {
+            val activity = LocalContext.current as FragmentActivity
+            SdkSignInDemoScreen(
+                activity = activity,
+                onAuthenticated = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.SdkUiDemo.route) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
             )
         }
     }

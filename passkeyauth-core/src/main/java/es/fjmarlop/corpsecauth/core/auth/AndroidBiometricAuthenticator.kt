@@ -6,6 +6,7 @@ import android.os.Looper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
+import es.fjmarlop.corpsecauth.PasskeyCapability
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.errors.BiometricException
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
@@ -13,6 +14,21 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executor
 import javax.crypto.Cipher
 import kotlin.coroutines.resume
+
+/**
+ * Mapea el código de [BiometricManager.canAuthenticate] a [PasskeyCapability].
+ * Fuente única de verdad compartida entre la ceremonia (lanzante) y
+ * PasskeyAuth.checkCapability() (no-lanzante). Ver ADR-013.
+ */
+internal fun mapCanAuthenticateToCapability(canAuthenticate: Int): PasskeyCapability =
+    when (canAuthenticate) {
+        BiometricManager.BIOMETRIC_SUCCESS -> PasskeyCapability.Ready
+        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> PasskeyCapability.NotEnrolled
+        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> PasskeyCapability.NoHardware
+        BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> PasskeyCapability.TemporarilyUnavailable
+        BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> PasskeyCapability.SecurityUpdateRequired
+        else -> PasskeyCapability.NoHardware
+    }
 
 /**
  * Implementacion Android de [BiometricAuthenticator] basada en [BiometricPrompt].
@@ -47,13 +63,12 @@ internal class AndroidBiometricAuthenticator(
             BiometricManager.Authenticators.BIOMETRIC_STRONG
         )
 
-        return when (canAuthenticate) {
-            BiometricManager.BIOMETRIC_SUCCESS -> {
+        return when (mapCanAuthenticateToCapability(canAuthenticate)) {
+            PasskeyCapability.Ready -> {
                 println("✅ BiometricAuthenticator: Biometria STRONG disponible")
                 Result.success(Unit)
             }
-
-            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+            PasskeyCapability.NoHardware -> {
                 println("❌ BiometricAuthenticator: Sin hardware biometrico")
                 Result.failure(
                     BiometricException.HardwareNotAvailable(
@@ -61,8 +76,7 @@ internal class AndroidBiometricAuthenticator(
                     )
                 )
             }
-
-            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+            PasskeyCapability.TemporarilyUnavailable -> {
                 println("⚠️ BiometricAuthenticator: Hardware no disponible")
                 Result.failure(
                     BiometricException.HardwareUnavailable(
@@ -70,8 +84,7 @@ internal class AndroidBiometricAuthenticator(
                     )
                 )
             }
-
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+            PasskeyCapability.NotEnrolled -> {
                 println("⚠️ BiometricAuthenticator: Sin huellas registradas")
                 Result.failure(
                     BiometricException.NoneEnrolled(
@@ -79,21 +92,11 @@ internal class AndroidBiometricAuthenticator(
                     )
                 )
             }
-
-            BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> {
+            PasskeyCapability.SecurityUpdateRequired -> {
                 println("⚠️ BiometricAuthenticator: Actualizacion de seguridad requerida")
                 Result.failure(
                     BiometricException.SecurityUpdateRequired(
                         "Se requiere actualizacion de seguridad del sistema"
-                    )
-                )
-            }
-
-            else -> {
-                println("❌ BiometricAuthenticator: Biometria no disponible (codigo: $canAuthenticate)")
-                Result.failure(
-                    BiometricException.HardwareNotAvailable(
-                        "Biometria no disponible (codigo: $canAuthenticate)"
                     )
                 )
             }
