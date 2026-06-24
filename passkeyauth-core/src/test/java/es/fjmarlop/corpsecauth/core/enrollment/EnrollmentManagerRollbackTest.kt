@@ -40,29 +40,29 @@ import org.junit.Test
  * **Por que este test es CRITICO:**
  * El rollback es la propiedad mas importante del [EnrollmentManager] (ADR-006).
  * Si un paso falla y el rollback no limpia el estado, el SDK queda en un estado
- * parcial inconsistente — lo que viola la garantia de "todo o nada".
+ * parcial inconsistente — lo que viola la garantía de "todo o nada".
  *
  * **Cobertura demostrada en este fichero (matriz COMPLETA de pasos con rollback):**
  *
  * | Paso que falla | Acciones de rollback esperadas              | Test                     |
  * |----------------|--------------------------------------------|--------------------------|
- * | 1 (login)      | (ninguna — no se ha tocado nada todavia)   | `dado login falla...`   |
+ * | 1 (login)      | (ninguna — no se ha tocado nada todavía)   | `dado login falla...`   |
  * | 3 (genKey)     | `signOut`                                   | `dado generateKey...`   |
- * | 4 (biometria)  | `deleteKey` + `signOut`                     | `dado biometria...`     |
+ * | 4 (biometría)  | `deleteKey` + `signOut`                     | `dado biometria...`     |
  * | 5 (cifrado)    | `deleteKey` + `signOut`                     | `dado cipher doFinal...` |
  * | 6 (bindDevice) | `deleteKey` + `clear` + `signOut`           | `dado bindDevice...`    |
  * | 7 (storage)    | `deleteKey` + `revokeDevice` + `signOut`    | `dado saveEncrypted...` |
  *
- * El paso 2 (invalidateTemporaryPassword) esta comentado en codigo de produccion
- * actualmente, asi que no se testea aqui. Cuando se descomente, anadir test.
+ * El paso 2 (invalidateTemporaryPassword) esta comentado en código de producción
+ * actualmente, asi que no se testea aquí. Cuando se descomente, añadir test.
  *
- * **Plantilla para tests futuros:** copiar este fichero para anadir mas escenarios
+ * **Plantilla para tests futuros:** copiar este fichero para añadir mas escenarios
  * de rollback (paso 1, paso 3, paso 7, etc.). El patron es:
  *   1. Configurar `xxxResult = Result.failure(SpecificException(...))` en el fake del paso
  *   2. Verificar emisiones hasta Error
  *   3. Verificar contadores de rollback (que SI se llamaron)
  *   4. Verificar contadores de pasos posteriores (que NO se llamaron)
- *   5. Verificar el Error state contiene la excepcion original (no perdida en el wrap)
+ *   5. Verificar el Error state contiene la excepción original (no perdida en el wrap)
  */
 internal class EnrollmentManagerRollbackTest {
 
@@ -131,17 +131,17 @@ internal class EnrollmentManagerRollbackTest {
     }
 
     /**
-     * **Plantilla CANONICA del patron rollback** — escenario mas simple.
+     * **Plantilla CANÓNICA del patron rollback** — escenario más simple.
      *
-     * Configuracion: paso 4 (autenticacion biometrica) falla por cancelacion del usuario.
-     * Rollback esperado segun EnrollmentManager:
+     * Configuración: paso 4 (autenticación biométrica) falla por cancelación del usuario.
+     * Rollback esperado según EnrollmentManager:
      *   - keyStoreManager.deleteKey() — la clave generada en paso 3 se borra
-     *   - authBackend.signOut() — cerrar sesion Firebase iniciada en paso 1
+     *   - authBackend.signOut() — cerrar sesión Firebase iniciada en paso 1
      * Pasos NO ejecutados (5, 6, 7) — verificamos que sus dependencias NO se llaman.
      */
     @Test
     fun `dado biometria cancelada por usuario cuando enrolla entonces rollback borra clave y signOut`() = runTest {
-        // ARRANGE: configurar paso 4 para fallar con BiometricException.UserCancelled
+        // ARRANGE: configurar paso 4 para fallar con BiometricException. UserCancelled
         val cancelException = BiometricException.UserCancelled("Usuario cancelo")
         biometricAuthenticator.encryptionResult = Result.failure(cancelException)
 
@@ -152,7 +152,7 @@ internal class EnrollmentManagerRollbackTest {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
 
-            // El siguiente estado debe ser Error con la excepcion original PRESERVADA
+            // El siguiente estado debe ser Error con la excepción original Preservada
             val errorState = awaitItem()
             assertThat(errorState).isInstanceOf(EnrollmentState.Error::class.java)
             val errorException = (errorState as EnrollmentState.Error).exception
@@ -172,31 +172,31 @@ internal class EnrollmentManagerRollbackTest {
         // 2. keyStoreManager.deleteKey() debe haberse llamado UNA vez (rollback)
         assertThat(keyStoreManager.deleteKeyCallCount).isEqualTo(1)
 
-        // ASSERT que los pasos POSTERIORES al fallo NO se ejecutaron.
-        // Esta es la garantia "todo o nada" del enrollment transaccional (ADR-006).
+        // ASSERT que los pasos Posteriores al fallo NO se ejecutaron.
+        // Esta es la garantía "todo o nada" del enrollment transaccional (ADR-006).
 
-        // Paso 6 (bindDevice) NO se llamo
+        // Paso 6 (bindDevice) NO se llamó
         assertThat(deviceRegistry.bindDeviceCallCount).isEqualTo(0)
 
-        // Paso 7 (saveEncryptedToken) NO se llamo
+        // Paso 7 (saveEncryptedToken) NO se llamó
         coVerify(exactly = 0) { secureStorage.saveEncryptedToken(any()) }
         coVerify(exactly = 0) { secureStorage.saveUserId(any()) }
 
-        // passwordManagement (paso 2, comentado) NO se llamo
+        // passwordManagement (paso 2, comentado) NO se llamó
         assertThat(passwordManagement.invalidateCallCount).isEqualTo(0)
     }
 
     /**
-     * **Plantilla CANONICA del patron rollback** — escenario mas complejo.
+     * **Plantilla CANÓNICA del patron rollback** — escenario más complejo.
      *
-     * Configuracion: paso 6 (bindDevice en Firestore) falla.
-     * Rollback esperado segun EnrollmentManager:
+     * Configuración: paso 6 (bindDevice en Firestore) falla.
+     * Rollback esperado según EnrollmentManager:
      *   - keyStoreManager.deleteKey() — la clave del paso 3
-     *   - secureStorage.clear() — limpieza (aunque paso 7 no escribio aun, defensa en profundidad)
+     *   - secureStorage.clear() — limpieza (aunque paso 7 no escribió aún, defensa en profundidad)
      *   - authBackend.signOut()
-     * Paso 7 (saveEncryptedToken y demas) NO se llama.
+     * Paso 7 (saveEncryptedToken y demás) NO se llama.
      *
-     * Demuestra como crece el rollback al avanzar pasos: mas dependencias tocadas → mas a limpiar.
+     * Demuestra como crece el rollback al avanzar pasos: más dependencias tocadas → más a limpiar.
      */
     @Test
     fun `dado bindDevice falla en Firestore cuando enrolla entonces rollback limpia clave storage y signOut`() = runTest {
@@ -225,28 +225,28 @@ internal class EnrollmentManagerRollbackTest {
         assertThat(authBackend.signOutCallCount).isEqualTo(1)
         coVerify(exactly = 1) { secureStorage.clear() }
 
-        // Paso 7 NO se llamo
+        // Paso 7 NO se llamó
         coVerify(exactly = 0) { secureStorage.saveEncryptedToken(any()) }
         coVerify(exactly = 0) { secureStorage.saveUserId(any()) }
         coVerify(exactly = 0) { secureStorage.saveDeviceId(any()) }
 
-        // bindDevice SI se llamo (es donde fallo), pero revokeDevice NO porque
+        // bindDevice SI se llamó (es donde fallo), pero revokeDevice NO porque
         // el rollback del paso 6 no incluye revoke (no llego a registrarse exitosamente).
         assertThat(deviceRegistry.bindDeviceCallCount).isEqualTo(1)
         assertThat(deviceRegistry.revokeDeviceCallCount).isEqualTo(0)
 
-        // Paso anterior (autenticacion biometrica) si se llamo:
+        // Paso anterior (autenticación biométrica) si se llamó:
         assertThat(biometricAuthenticator.encryptionCallCount).isEqualTo(1)
     }
 
     /**
      * Rollback de PASO 1 (login con credenciales falla).
      *
-     * Caso especial: NO hay rollback porque no se ha tocado ningun estado todavia.
-     * El test verifica que NINGUN colaborador posterior se llama y que la excepcion
+     * Caso especial: no hay rollback porque no se ha tocado ningún estado todavía.
+     * El test verifica que NINGÚN colaborador posterior se llama y que la excepción
      * original se propaga sin perdida.
      *
-     * Importante para SDK enterprise: si las credenciales temporales son invalidas,
+     * Importante para SDK enterprise: si las credenciales temporales son inválidas,
      * el usuario debe poder reintentar sin que el SDK haya consumido recursos.
      */
     @Test
@@ -272,7 +272,7 @@ internal class EnrollmentManagerRollbackTest {
         // ASSERT: el authBackend SI fue invocado (es donde fallamos)
         assertThat(authBackend.authenticateCallCount).isEqualTo(1)
 
-        // ASSERT: NINGUNA accion de rollback ni paso posterior se ejecuto
+        // ASSERT: NINGUNA acción de rollback ni paso posterior se ejecutó
         // Esto es la propiedad clave de "fallo temprano = limpio".
         assertThat(authBackend.signOutCallCount).isEqualTo(0)
         assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(0)
@@ -288,11 +288,11 @@ internal class EnrollmentManagerRollbackTest {
     /**
      * Rollback de PASO 3 (generateKey en KeyStore falla).
      *
-     * Caso interesante: StrongBox obligatorio en device sin StrongBox lanzaria
-     * [CryptoException.StrongBoxNotAvailable]. El rollback debe deshacer el unico
-     * efecto colateral hasta ahora: la sesion Firebase abierta en paso 1.
+     * Caso interesante: StrongBox obligatorio en device sin StrongBox lanzaría
+     * [CryptoException.StrongBoxNotAvailable]. El rollback debe deshacer el único
+     * efecto colateral hasta ahora: la sesión Firebase abierta en paso 1.
      *
-     * Importante: NO se llama deleteKey porque la generacion fallo — no hay clave que borrar.
+     * Importante: no se llama deleteKey porque la generación falla — no hay clave que borrar.
      */
     @Test
     fun `dado generateKey falla por StrongBox no disponible entonces rollback solo hace signOut`() = runTest {
@@ -315,7 +315,7 @@ internal class EnrollmentManagerRollbackTest {
             awaitComplete()
         }
 
-        // ASSERT rollback minimo: solo signOut (no hay clave que borrar)
+        // ASSERT rollback mínimo: solo signOut (no hay clave que borrar)
         assertThat(authBackend.signOutCallCount).isEqualTo(1)
         assertThat(keyStoreManager.deleteKeyCallCount).isEqualTo(0)
 
@@ -330,17 +330,17 @@ internal class EnrollmentManagerRollbackTest {
     }
 
     /**
-     * Rollback de PASO 7 (saveEncryptedToken falla) — escenario mas critico.
+     * Rollback de PASO 7 (saveEncryptedToken falla) — escenario más critico.
      *
-     * Es el rollback con MAS acciones porque el flujo llego a vincular el device
+     * Es el rollback con MÁS acciones porque el flujo llego a vincular el device
      * en Firestore (paso 6) pero no pudo persistir localmente. El rollback debe:
      *   - `deleteKey` — quitar la clave del KeyStore
      *   - `deviceRegistry.revokeDevice` — desvincular el device del usuario en Firestore
      *     (importante: usa session.user.uid, NO el deviceId)
-     *   - `authBackend.signOut` — cerrar sesion Firebase
+     *   - `authBackend.signOut` — cerrar sesión Firebase
      *
-     * Tambien verificamos que los OTROS save* del storage NO se llamaron (porque vienen
-     * despues de saveEncryptedToken en el codigo).
+     * También verificamos que los OTROS save* del storage NO se llamaron (porque vienen
+     * después de saveEncryptedToken en el código).
      */
     @Test
     fun `dado saveEncryptedToken falla entonces rollback elimina key revoca device y signOut`() = runTest {
@@ -359,20 +359,20 @@ internal class EnrollmentManagerRollbackTest {
             val errorState = awaitItem()
             assertThat(errorState).isInstanceOf(EnrollmentState.Error::class.java)
             // NOTA: storageException es un RuntimeException puro (no PasskeyAuthException),
-            // asi que wrapException SI lo envuelve en EnrollmentException.EnrollmentFailed.
-            // No usamos isSameInstanceAs aqui — verificamos que la causa esta preservada.
+            // asi que wrapException SI lo envuelve en EnrollmentException. EnrollmentFailed.
+            // No usamos isSameInstanceAs aquí — verificamos que la causa está preservada.
             val wrappedException = (errorState as EnrollmentState.Error).exception
             assertThat(wrappedException.cause).isSameInstanceAs(storageException)
 
             awaitComplete()
         }
 
-        // ASSERT rollback COMPLETO (el mas grande del SDK):
+        // ASSERT rollback COMPLETO (el más grande del SDK):
         assertThat(keyStoreManager.deleteKeyCallCount).isEqualTo(1)
         assertThat(deviceRegistry.revokeDeviceCallCount).isEqualTo(1)
         assertThat(authBackend.signOutCallCount).isEqualTo(1)
 
-        // ASSERT revokeDevice se llamo con el userId correcto (NO con el deviceId)
+        // ASSERT revokeDevice se llamó con el userId correcto (NO con el deviceId)
         // — error frecuente al implementar rollback de paso 7.
         assertThat(deviceRegistry.devicesFor(testUser.uid)?.isActive).isFalse()
 
@@ -392,28 +392,28 @@ internal class EnrollmentManagerRollbackTest {
     /**
      * Rollback de PASO 5 (cipher.doFinal falla durante el cifrado).
      *
-     * **Test de regresion** que protege contra el bug detectado durante el commit
+     * **Test de regresión** que protege contra el bug detectado durante el commit
      * inicial de testing (ver bugfixes.md): el paso 5 cifraba con `cipher.doFinal()`
-     * pero NO tenia try/catch — si la operacion lanzaba (BadPaddingException,
-     * IllegalBlockSizeException, etc.) la excepcion caia al catch outer del flow
-     * que NO ejecutaba rollback. Esto violaba la garantia "todo o nada" del ADR-006.
+     * pero NO tenia try/catch — si la operación lanzaba (BadPaddingException,
+     * IllegalBlockSizeException, etc.) la excepción caía al catch outer del flow
+     * que NO ejecutaba rollback. Esto violaba la garantía "todo o nada" del ADR-006.
      *
      * **Fix aplicado:** envolver el bloque de cifrado en try/catch que ejecuta el
      * rollback equivalente al del paso 4 (`deleteKey` + `signOut`) y emite
      * `EnrollmentState.Error` con [CryptoException.EncryptionFailed].
      *
-     * **Estrategia del test:** inyectamos un Cipher mockeado que lanza
+     * **Estrategia del test:** inyectamos un Cipher mocker que lanza
      * `BadPaddingException` en `doFinal()`. El fake de biometric lo devuelve
      * en `encryptionResult`.
      */
     @Test
     fun `dado cipher doFinal falla en paso 5 entonces rollback borra clave y signOut`() = runTest {
-        // ARRANGE: cipher mockeado que lanza en doFinal
+        // ARRANGE: cipher mocker que lanza en doFinal
         val cipherException = BadPaddingException("Cipher invalido (simulado)")
         val failingCipher = mockk<Cipher>(relaxed = false)
         every { failingCipher.doFinal(any<ByteArray>()) } throws cipherException
-        // iv se llama en la rama de exito, no en la de fallo — pero por defensa
-        // configuramos un valor por si el orden de evaluacion cambia.
+        // iv se llama en la rama de éxito, no en la de fallo — pero por defensa
+        // configuramos un valor por si el orden de evaluación cambia.
         every { failingCipher.iv } returns ByteArray(12)
 
         biometricAuthenticator.encryptionResult = Result.success(failingCipher)
@@ -425,7 +425,7 @@ internal class EnrollmentManagerRollbackTest {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
 
-            // Estado siguiente: Error con CryptoException.EncryptionFailed envolviendo
+            // Estado siguiente: Error con CryptoException. EncryptionFailed envolviendo
             // la BadPaddingException original.
             val errorState = awaitItem()
             assertThat(errorState).isInstanceOf(EnrollmentState.Error::class.java)

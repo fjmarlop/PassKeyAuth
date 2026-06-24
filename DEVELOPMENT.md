@@ -33,31 +33,38 @@ es.fjmarlop.corpsecauth.core/
 **Testing:** 73 tests JVM/Robolectric — ver `src/test/java/` y [ADR-011](docs/adr/011-testing-stack-and-strategy.md)
 
 #### passkeyauth-ui
-**Proposito:** Componentes Compose opcionales. **Modelo híbrido** (ADR-014): composables primitivos personalizables + launcher fino de una línea. La UI es secundaria — servicio para el dev + first-run experience que vende el core.
+**Proposito:** Componentes Compose opcionales. **Modelo híbrido** (ADR-014): composables primitivos personalizables + launcher fino de una línea.
 
-**Paquetes (planificados — ver plan de implementación):**
+**Paquetes implementados:**
 ```
 es.fjmarlop.corpsecauth.ui/
-├── theme/              # PasskeyAuthTheme (CompositionLocal), colores zero-config, branding
-├── signin/             # PasskeySignInScreen + scaffold dirigido por 6 estados
-├── enroll/             # PasskeyEnrollScreen (mapea EnrollmentState)
-└── launcher/           # ActivityResultContract híbrido (integración de 1 línea)
+├── theme/              # PasskeyAuthTheme (CompositionLocal), PasskeyAuthColors, PasskeyAuthBranding
+├── signin/             # PasskeySignInScreen + PasskeySignInScaffold (6 estados) + PasskeyUiState
+├── enroll/             # PasskeyEnrollScreen (mapea EnrollmentState → PasskeyUiState)
+└── launcher/           # PasskeyAuthContract + PasskeyAuthActivity + PasskeyAuthResult
 ```
-
-**Estado:** scaffolded (build.gradle con Compose, depende de core) pero vacío de Kotlin. Diseño cerrado en [ADR-014](docs/adr/014-ui-module-hybrid-integration.md), sobre el contrato de core de [ADR-013](docs/adr/013-non-negotiable-security-invariants.md). Plan task-by-task en [`docs/plans/2026-06-20-passkeyauth-ui-module.md`](docs/plans/2026-06-20-passkeyauth-ui-module.md).
 
 **Theming:** zero-config deriva de `MaterialTheme.colorScheme` (se mimetiza con la app); override explícito vía `PasskeyAuthTheme(colors = ..., branding = ...)`. Logo como slot `Painter?`, nunca resource hardcodeado.
 
-**Testing:** Compose UI test (Robolectric) — valida qué CTA aparece por estado, no píxeles.
+**Testing:** 7 tests Compose Robolectric en `PasskeySignInScaffoldTest` — validan qué CTA aparece por estado y el escape hatch de error.
 
 #### sample
-**Proposito:** App de demostracion y validacion.
+**Proposito:** App de demostracion y validacion. Wiring directo al SDK UI sin capas intermedias.
 
-**Escenarios (planeados):**
-- Enrollment flow completo
-- Login biometrico
-- Revocacion de dispositivo
-- Manejo de errores
+**Pantallas:**
+- `SplashScreen` — router inicial (1.2 s) → `CredentialsScreen` o `PasskeySignInScreen`
+- `CredentialsScreen` — recoge email + contraseña temporal antes del enrollment
+- `PasskeyEnrollScreen` (SDK) — ceremonia biométrica de registro
+- `PasskeySignInScreen` (SDK) — ceremonia biométrica de login
+- `HomeScreen` — pantalla de éxito con botón de logout
+
+**Flujo:**
+```
+Splash ──► no enrollado ──► Credentials ──► PasskeyEnrollScreen ──► Home
+       └── enrollado ──────► PasskeySignInScreen ─────────────────► Home
+                                                                       │
+Home (logout) ───────────────────────────────────────────────────► Credentials
+```
 
 ## Setup de Desarrollo
 
@@ -147,8 +154,9 @@ Pirámide de tests documentada en [ADR-011](docs/adr/011-testing-stack-and-strat
 ### Ejecutar Tests
 
 ```bash
-# 1) JVM + Robolectric (73 tests, <30s) — ejecutados por CI
-.\gradlew.bat :passkeyauth-core:testDebugUnitTest
+# 1) JVM + Robolectric — ejecutados por CI
+.\gradlew.bat :passkeyauth-core:testDebugUnitTest   # 119 tests core (incl. 36 de seguridad)
+.\gradlew.bat :passkeyauth-ui:testDebugUnitTest     # tests Compose Robolectric
 
 # 2) Lint rules (12 tests) — ejecutados por CI
 .\gradlew.bat :passkeyauth-lint:test
@@ -166,7 +174,8 @@ Pirámide de tests documentada en [ADR-011](docs/adr/011-testing-stack-and-strat
 | Nivel | Carpeta | Tests | Qué valida |
 |---|---|---|---|
 | JVM puro | `src/test/java/` | 22 | `EnrollmentManager`: happy path, rollback por paso, helpers, contratos de fakes |
-| Robolectric | `src/test/java/` (mismo runner) | 51 | `SecureStorage` con DataStore; `FirebaseAuthBackend` y `FirestoreDeviceRegistry` con MockK; facade `PasskeyAuth` |
+| JVM seguridad | `src/test/java/.../core/security/` | 32 | `RootDetector`, `EmulatorDetector`, `HookDetector`, `IntegrityGuard` (señales inyectadas) |
+| Robolectric | `src/test/java/` (mismo runner) | 51+ | `SecureStorage` con DataStore; `FirebaseAuthBackend` y `FirestoreDeviceRegistry` con MockK; facade `PasskeyAuth` |
 | Lint rules | `passkeyauth-lint/src/test/` | 12 | L1/L2/L3 — `FragmentActivity`, anti-pattern SplashScreen, lifecycle hooks |
 | Instrumented | `src/androidTest/java/` | 8–9/device | `AndroidKeyStoreManager` con StrongBox real vs TEE |
 
@@ -206,6 +215,41 @@ Workflow en `.github/workflows/ci.yml`:
 - Dos pasos independientes: `:passkeyauth-core:testDebugUnitTest` + `:passkeyauth-lint:test`
 - HTML reports subidos como artifact en caso de fallo (7 días de retención)
 - `cancel-in-progress: true` para ahorrar minutos de runner en pushes obsoletos
+
+## Security Hardening (ADR-015)
+
+Implementado en v0.3.x. Plan y estado en [`docs/plans/2026-06-25-security-hardening.md`](docs/plans/2026-06-25-security-hardening.md), decisión en [ADR-015](docs/adr/015-runtime-integrity-and-privacy-hardening.md).
+
+| Bloque | Feature | Estado |
+|---|---|---|
+| A1 | `FLAG_SECURE` — anti-screenshot + app switcher | ✅ |
+| A2 | Privacy overlay al pasar a background | ✅ |
+| B1 | Root detection (`RootDetector`) | ✅ |
+| B2 | Emulator detection (`EmulatorDetector`) | ✅ |
+| B3 | Anti-debug (release) | ✅ |
+| B4 | Frida/Xposed detection (`HookDetector`) | ✅ |
+| C2 | Network Security Config (sin cleartext) | ✅ |
+| D1 | Memory zeroing del token plaintext | ✅ |
+| E2 | Clipboard protection | ✅ |
+| F1 | `allowBackup=false` | ✅ |
+| C1 | Certificate pinning | ⏳ plantilla comentada (pines reales pendientes) |
+| D2 | Key attestation verification | ⏳ pendiente |
+| E1 | Tapjacking detection | ⏳ pendiente |
+
+**Invariantes (no configurables):**
+- `FLAG_SECURE` siempre activo en `PasskeyAuthActivity`
+- Anti-debug siempre activo en release builds
+
+**Configurables vía `PasskeyAuthConfig`:**
+- `rootPolicy: RootPolicy` (`Block` / `Warn` / `Allow`) — gobierna root y hooking
+- `emulatorPolicy: EmulatorPolicy` (`Block` / `Warn` / `Allow`)
+- `enablePrivacyOverlay: Boolean = true`
+
+**Arquitectura testeable:** los detectores reciben sus dependencias de plataforma
+(filesystem, `PackageManager`, `Build`) inyectadas; `IntegrityGuard.evaluate()` es
+lógica pura → 25 tests JVM sin necesidad de device comprometido.
+
+---
 
 ## Tooling de desarrollador asistido por IA (opcional)
 

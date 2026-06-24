@@ -20,19 +20,28 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 @Composable
 fun CredentialsScreen(
@@ -42,6 +51,21 @@ fun CredentialsScreen(
     var email by remember { mutableStateOf("test@fjmarlop.es") }
     var password by remember { mutableStateOf("12345678") }
     var passwordVisible by remember { mutableStateOf(false) }
+
+    // SEGURIDAD (ADR-015, bloque E2): si el usuario copia el email o la contraseña
+    // temporal, no queremos que persista en el portapapeles tras salir de la pantalla.
+    // Limpiamos el clipboard al pasar a segundo plano.
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                clearClipboard(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Column(
         modifier = Modifier
@@ -138,5 +162,24 @@ fun CredentialsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(32.dp))
+    }
+}
+
+/**
+ * Limpia el portapapeles. En API 28+ usa clearPrimaryClip(); en versiones
+ * anteriores sobrescribe con un ClipData vacío (no existe clear nativo).
+ */
+private fun clearClipboard(context: Context) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        ?: return
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            clipboard.clearPrimaryClip()
+        } else {
+            clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+        }
+    } catch (e: Exception) {
+        // Algunos OEMs lanzan SecurityException si la app no está en foreground.
+        // No es crítico — best-effort.
     }
 }

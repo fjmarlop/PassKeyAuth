@@ -1,6 +1,7 @@
 package es.fjmarlop.corpsecauth
 
 import android.content.Context
+import android.content.pm.PackageManager
 import com.google.common.truth.Truth.assertThat
 import es.fjmarlop.corpsecauth.core.crypto.CryptoProvider
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
@@ -80,6 +81,17 @@ internal class PasskeyAuthFacadeTest {
         secureStorageMock = mockk(relaxed = false)
         cryptoProviderMock = mockk(relaxed = true)
         contextMock = mockk(relaxed = true)
+
+        // IntegrityGuard (parte de initialize) consulta paquetes instalados via
+        // PackageManager. Con un contextMock relaxed, getPackageInfo devolvería un
+        // mock en vez de lanzar NameNotFoundException — haciendo que TODO paquete
+        // (incluidas apps de root) pareciera instalado. Estabilizamos el PM para
+        // que reporte "no instalado", reflejando un entorno limpio.
+        every { contextMock.applicationContext } returns contextMock
+        val packageManagerMock = mockk<PackageManager>()
+        every { contextMock.packageManager } returns packageManagerMock
+        every { packageManagerMock.getPackageInfo(any<String>(), any<Int>()) } throws
+            PackageManager.NameNotFoundException()
 
         // SecureStorage: comportamiento por defecto que TODOS los tests usan en
         // refreshAuthState (parte de initialize). No expone Result fallidos —
