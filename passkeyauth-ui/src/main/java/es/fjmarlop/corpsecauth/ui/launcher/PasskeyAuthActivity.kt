@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import androidx.fragment.app.FragmentActivity
 import es.fjmarlop.corpsecauth.PasskeyAuthConfig
@@ -22,6 +23,7 @@ internal class PasskeyAuthActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         val config = PasskeyAuthConfig.Custom(
             allowHostFallback = intent.getBooleanExtra(EXTRA_ALLOW_HOST_FALLBACK, false),
