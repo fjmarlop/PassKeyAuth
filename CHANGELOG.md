@@ -30,9 +30,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - **`PasskeyAuthContract`** + **`PasskeyAuthResult`** — launcher híbrido de una línea vía `ActivityResultContract`
 - i18n: 11 strings sobrescribibles por el host en `strings.xml`
 
-#### Sample
+#### UI (`passkeyauth-ui`) — rediseño visual
 
-- Pantalla demo `SdkSignInDemoScreen` con `PasskeySignInScreen` zero-config accesible desde `LoginScreen`
+- **`PasskeySignInScaffold`** rediseñado: layout con peso (icono centrado / CTA anclado al fondo), iconos Material Outlined por estado (`Fingerprint` / `Warning` / `TouchApp` / `Block`), botón full-width 56 dp con `RoundedCornerShape(16)`, tipografía `headlineSmall SemiBold`
+- Escape hatch anti-bucle: en estado `Error` con `allowHostFallback = true`, muestra botón de fallback bajo "Reintentar"
+- `enableEdgeToEdge()` en `PasskeyAuthActivity` + `safeDrawingPadding()` en el scaffold
+
+#### Sample — refactor completo a SDK UI
+
+- **`CredentialsScreen`** — pantalla de recogida de email + contraseña temporal antes del enrollment; prefilled para testing, nota de soporte visible
+- Wiring directo: `Screen.Enrollment` → `PasskeyEnrollScreen`, `Screen.Login` → `PasskeySignInScreen` sin wrappers intermedios
+- `AuthViewModel` reducido a `isDeviceEnrolled()` + `logout()`
+- Eliminados: `LoginScreen`, `EnrollmentScreen`, `SdkSignInDemoScreen` (−324 líneas)
+- `SplashScreen` y `HomeScreen` rediseñados sin emojis, iconos Material Outlined, layout con `weight`
+- Logout navega a `CredentialsScreen` (no a `LoginScreen`) — evita el bucle de error cuando el device queda desenrolado
+- Edge-to-edge: `enableEdgeToEdge()` en `MainActivity`, tema `AppCompat.DayNight.NoActionBar`, `adjustResize`, `safeDrawingPadding()` en todas las pantallas
 
 ---
 
