@@ -3,6 +3,7 @@ package es.fjmarlop.corpsecauth.core.crypto
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import es.fjmarlop.corpsecauth.HardwareSecurityLevel
 import es.fjmarlop.corpsecauth.core.errors.CryptoException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,7 +34,8 @@ import javax.crypto.SecretKey
  */
 internal class AndroidKeyStoreManager(
     private val userAuthenticationValiditySeconds: Int = 0,
-    private val requireStrongBox: Boolean = false
+    private val requireStrongBox: Boolean = false,
+    private val attestationVerifier: KeyAttestationVerifier = KeyAttestationVerifier()
 ) : KeyStoreManager {
 
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
@@ -45,14 +47,16 @@ internal class AndroidKeyStoreManager(
             // MODO 1: StrongBox OBLIGATORIO
             if (requireStrongBox) {
                 println("🔐 KeyStoreManager: Modo StrongBox OBLIGATORIO")
-                return@withContext generateKeyWithStrongBox().onFailure {
-                    println("❌ KeyStoreManager: StrongBox no disponible pero es obligatorio")
-                    return@withContext Result.failure(
-                        CryptoException.StrongBoxNotAvailable(
-                            "StrongBox requerido pero no disponible en este dispositivo"
+                return@withContext generateKeyWithStrongBox()
+                    .onSuccess { key -> logAttestation(key, expectedStrongBox = true) }
+                    .onFailure {
+                        println("❌ KeyStoreManager: StrongBox no disponible pero es obligatorio")
+                        return@withContext Result.failure(
+                            CryptoException.StrongBoxNotAvailable(
+                                "StrongBox requerido pero no disponible en este dispositivo"
+                            )
                         )
-                    )
-                }
+                    }
             }
 
             // MODO 2: StrongBox OPCIONAL con fallback a TEE
@@ -61,14 +65,18 @@ internal class AndroidKeyStoreManager(
             val strongBoxResult = generateKeyWithStrongBox()
             if (strongBoxResult.isSuccess) {
                 println("✅ KeyStoreManager: Clave generada con StrongBox")
-                return@withContext strongBoxResult
+                return@withContext strongBoxResult.also { r ->
+                    r.onSuccess { key -> logAttestation(key, expectedStrongBox = true) }
+                }
             }
 
             println("⚠️ KeyStoreManager: StrongBox no disponible, usando TEE como fallback")
             val teeResult = generateKeyWithTEE()
             if (teeResult.isSuccess) {
                 println("✅ KeyStoreManager: Clave generada con TEE")
-                return@withContext teeResult
+                return@withContext teeResult.also { r ->
+                    r.onSuccess { key -> logAttestation(key, expectedStrongBox = false) }
+                }
             }
 
             println("❌ KeyStoreManager: Fallo tanto StrongBox como TEE")
@@ -275,6 +283,25 @@ internal class AndroidKeyStoreManager(
 
     override fun hasKey(): Boolean {
         return keyStore.containsAlias(KEY_ALIAS)
+    }
+
+    // ADR-015 D2: verifica el nivel de hardware real de la clave generada.
+    // Si se esperaba StrongBox pero la attestation dice SOFTWARE, loggea error crítico
+    // (la garantía ya la dio generateKeyWithStrongBox; esto es defensa en profundidad).
+    private fun logAttestation(key: javax.crypto.SecretKey, expectedStrongBox: Boolean) {
+        val level = attestationVerifier.checkSecurityLevel(key)
+        when {
+            level == HardwareSecurityLevel.UNKNOWN ->
+                println("⚠️ KeyAttestation: no disponible en este entorno (emulador/test)")
+            level == HardwareSecurityLevel.SOFTWARE ->
+                println("❌ KeyAttestation: clave SOFTWARE-backed — garantía hardware no verificada")
+            level == HardwareSecurityLevel.STRONGBOX ->
+                println("✅ KeyAttestation: clave en StrongBox (chip dedicado)")
+            level == HardwareSecurityLevel.TRUSTED_ENVIRONMENT && expectedStrongBox ->
+                println("⚠️ KeyAttestation: clave en TEE, pero se esperaba StrongBox")
+            else ->
+                println("✅ KeyAttestation: clave en TEE (hardware-backed)")
+        }
     }
 
     companion object {

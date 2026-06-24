@@ -86,10 +86,39 @@ Defaults por configuración:
 - **Clipboard:** el host limpia el portapapeles al pasar a background en la pantalla de credenciales (implementado en el sample).
 - **Backup:** `allowBackup=false` + `fullBackupContent=false` en el sample, evitando exfiltración del estado vía adb backup.
 
-### 5. Red
+### 5. Tapjacking (capa UI — E1)
+
+Una app maliciosa puede superponer una capa transparente sobre las pantallas del SDK para redirigir o interceptar la interacción del usuario. La protección se aplica en `dispatchTouchEvent` de cada Activity:
+
+```kotlin
+override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    if (ev.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED != 0) return false
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+        ev.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED != 0) return false
+    return super.dispatchTouchEvent(ev)
+}
+```
+
+- `FLAG_WINDOW_IS_OBSCURED` — ventana completamente cubierta (API 26+)
+- `FLAG_WINDOW_IS_PARTIALLY_OBSCURED` — cubierta parcialmente por un overlay (API 29+)
+
+`BiometricPrompt` gestiona su propio diálogo fuera de la ventana del SDK: el sistema ya aplica protección anti-tapjacking en ese diálogo. Esta medida cubre las pantallas propias: `PasskeySignInScreen`, `PasskeyEnrollScreen` (vía `PasskeyAuthActivity`) y `CredentialsScreen` (vía `MainActivity` del host — implementado en el sample como referencia).
+
+### 6. Key attestation (D2)
+
+`KeyAttestationVerifier` verifica, tras cada generación de clave, que el material reside en hardware real usando `android.security.keystore.KeyInfo`:
+
+- API 23–30: `KeyInfo.isInsideSecureHardware()` — distingue hardware (TEE/StrongBox) de software
+- API 31+: `KeyInfo.securityLevel` — distingue `STRONGBOX` de `TRUSTED_ENVIRONMENT` de `SOFTWARE`
+
+El resultado se expone como `HardwareSecurityLevel` (público) y se logea en el paso 3 del enrollment. Es **informativo, no bloqueante** en modo producción — el enforcement ya está en `generateKeyWithStrongBox()`. Añade valor como:
+- Auditoría de nivel de hardware de los dispositivos enrolados
+- Defensa en profundidad: si la API del KeyStore mintiera (dispositivo comprometido), el `IntegrityGuard` ya lo bloquea antes de llegar al enrollment.
+
+### 7. Red
 
 - **Network Security Config** (`cleartextTrafficPermitted=false`) prohíbe tráfico en claro.
-- **Certificate pinning** se entrega como **plantilla comentada**, no activa: pines incorrectos dejan la app inutilizable (bricking). Activarlo exige pines SHA-256 reales + pin de backup + proceso de rotación documentado.
+- **Certificate pinning** — las llamadas HTTP las hace el Firebase SDK, no el SDK de PasskeyAuth. El pinning es responsabilidad del integrador en su `network_security_config.xml`. Ver [guía de cert pinning para integradores](../../DEVELOPMENT.md#cert-pinning-para-integradores).
 
 ---
 

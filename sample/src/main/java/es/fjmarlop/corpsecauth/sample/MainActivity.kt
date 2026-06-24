@@ -1,6 +1,8 @@
 package es.fjmarlop.corpsecauth.sample
 
+import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -83,6 +85,15 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    // SEGURIDAD (ADR-015, bloque E1): tapjacking — igual que PasskeyAuthActivity.
+    // Protege CredentialsScreen (email + contraseña temporal).
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED != 0) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ev.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED != 0) return false
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onStart() {

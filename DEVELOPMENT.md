@@ -232,9 +232,9 @@ Implementado en v0.3.x. Plan y estado en [`docs/plans/2026-06-25-security-harden
 | D1 | Memory zeroing del token plaintext | ✅ |
 | E2 | Clipboard protection | ✅ |
 | F1 | `allowBackup=false` | ✅ |
-| C1 | Certificate pinning | ⏳ plantilla comentada (pines reales pendientes) |
-| D2 | Key attestation verification | ⏳ pendiente |
-| E1 | Tapjacking detection | ⏳ pendiente |
+| C1 | Certificate pinning | 📖 responsabilidad del integrador (ver [guía](#cert-pinning-para-integradores)) |
+| D2 | Key attestation verification (`KeyAttestationVerifier`) | ✅ |
+| E1 | Tapjacking (`dispatchTouchEvent` + `FLAG_WINDOW_IS_OBSCURED`) | ✅ |
 
 **Invariantes (no configurables):**
 - `FLAG_SECURE` siempre activo en `PasskeyAuthActivity`
@@ -248,6 +248,49 @@ Implementado en v0.3.x. Plan y estado en [`docs/plans/2026-06-25-security-harden
 **Arquitectura testeable:** los detectores reciben sus dependencias de plataforma
 (filesystem, `PackageManager`, `Build`) inyectadas; `IntegrityGuard.evaluate()` es
 lógica pura → 25 tests JVM sin necesidad de device comprometido.
+
+### Cert pinning para integradores
+
+El SDK de PasskeyAuth no incluye certificate pinning en su `network_security_config.xml` porque **las llamadas HTTP las hace el Firebase SDK, no nuestro código**. Activarlo desde el SDK sin pines reales verificados brickaría las apps de los integradores.
+
+Para activarlo en tu app host:
+
+**1. Obtener los pines actuales de Firebase:**
+
+```bash
+# Obtener pin SHA-256 del certificado leaf de firebaseio.com
+openssl s_client -connect firebaseio.com:443 -servername firebaseio.com </dev/null 2>/dev/null \
+  | openssl x509 -pubkey -noout \
+  | openssl pkey -pubin -outform der \
+  | openssl dgst -sha256 -binary \
+  | openssl enc -base64
+
+# Repetir para googleapis.com y identitytoolkit.googleapis.com
+```
+
+**2. Configurar en `res/xml/network_security_config.xml`:**
+
+```xml
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">firebaseio.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">identitytoolkit.googleapis.com</domain>
+        <pin-set expiration="2027-06-01">
+            <!-- Pin actual — obtener con el comando openssl anterior -->
+            <pin digest="SHA-256">REEMPLAZAR_CON_PIN_REAL=</pin>
+            <!-- Pin de backup OBLIGATORIO — evita bricking si Google rota -->
+            <pin digest="SHA-256">REEMPLAZAR_CON_PIN_BACKUP=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>
+```
+
+**Importante:**
+- El pin de backup es **obligatorio**. Si Google rota el certificado antes de que actualices la app, los usuarios quedarían bloqueados sin un backup.
+- Establece `expiration` con ~12 meses de margen para forzar actualizaciones antes del vencimiento.
+- Prueba en staging antes de publicar: un pin incorrecto silencia todo el tráfico Firebase sin mensaje de error útil.
+- Ver [certificados raíz de Google Cloud](https://pki.goog/) para obtener pins de CA raíz (más estables que los de leaf).
 
 ---
 
