@@ -3,6 +3,7 @@ package es.fjmarlop.corpsecauth.ui.launcher
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +24,12 @@ internal class PasskeyAuthActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // SEGURIDAD (ADR-015, bloque A1): FLAG_SECURE impide screenshots, grabación
+        // de pantalla y que el app switcher exponga la pantalla de autenticación.
+        // Invariante no configurable en las pantallas del SDK.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
         enableEdgeToEdge()
 
         val config = PasskeyAuthConfig.Custom(

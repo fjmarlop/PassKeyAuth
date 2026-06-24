@@ -33,4 +33,39 @@ internal class PasskeyAuthConfigTest {
         val cfg = PasskeyAuthConfig.Custom(allowHostFallback = true)
         assertThat(cfg.allowHostFallback).isTrue()
     }
+
+    @Test
+    fun `Default aplica policies de integridad estrictas`() {
+        val cfg = PasskeyAuthConfig.Default
+        assertThat(cfg.rootPolicy).isEqualTo(RootPolicy.Block)
+        assertThat(cfg.emulatorPolicy).isEqualTo(EmulatorPolicy.Block)
+        assertThat(cfg.enablePrivacyOverlay).isTrue()
+    }
+
+    @Test
+    fun `Debug es tolerante con entornos de desarrollo`() {
+        val cfg = PasskeyAuthConfig.Debug
+        assertThat(cfg.rootPolicy).isEqualTo(RootPolicy.Warn)
+        assertThat(cfg.emulatorPolicy).isEqualTo(EmulatorPolicy.Allow)
+    }
+
+    @Test
+    fun `Custom usa root Block y emulator Warn por defecto`() {
+        val cfg = PasskeyAuthConfig.Custom()
+        assertThat(cfg.rootPolicy).isEqualTo(RootPolicy.Block)
+        assertThat(cfg.emulatorPolicy).isEqualTo(EmulatorPolicy.Warn)
+        assertThat(cfg.enablePrivacyOverlay).isTrue()
+    }
+
+    @Test
+    fun `Custom permite override de policies`() {
+        val cfg = PasskeyAuthConfig.Custom(
+            rootPolicy = RootPolicy.Allow,
+            emulatorPolicy = EmulatorPolicy.Block,
+            enablePrivacyOverlay = false,
+        )
+        assertThat(cfg.rootPolicy).isEqualTo(RootPolicy.Allow)
+        assertThat(cfg.emulatorPolicy).isEqualTo(EmulatorPolicy.Block)
+        assertThat(cfg.enablePrivacyOverlay).isFalse()
+    }
 }

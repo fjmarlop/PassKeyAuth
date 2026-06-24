@@ -5,6 +5,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,10 +14,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
 import es.fjmarlop.corpsecauth.PasskeyAuth
 import es.fjmarlop.corpsecauth.PasskeyAuthConfig
+import es.fjmarlop.corpsecauth.ui.privacy.PrivacyOverlay
 import kotlinx.coroutines.launch
 
 /**
@@ -43,28 +47,31 @@ fun PasskeySignInScreen(
         state = PasskeyUiState.from(PasskeyAuth.checkCapability(context))
     }
 
-    PasskeySignInScaffold(
-        state = state,
-        allowHostFallback = config.allowHostFallback,
-        onHostFallback = onHostFallback,
-        onPrimaryAction = {
-            when (state) {
-                PasskeyUiState.NotEnrolled -> {
-                    // ACTION_BIOMETRIC_ENROLL requiere API 30+; fallback a Security Settings
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Intent(Settings.ACTION_BIOMETRIC_ENROLL)
-                    } else {
-                        Intent(Settings.ACTION_SECURITY_SETTINGS)
+    Box(Modifier.fillMaxSize()) {
+        PasskeySignInScaffold(
+            state = state,
+            allowHostFallback = config.allowHostFallback,
+            onHostFallback = onHostFallback,
+            onPrimaryAction = {
+                when (state) {
+                    PasskeyUiState.NotEnrolled -> {
+                        // ACTION_BIOMETRIC_ENROLL requiere API 30+; fallback a Security Settings
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            Intent(Settings.ACTION_BIOMETRIC_ENROLL)
+                        } else {
+                            Intent(Settings.ACTION_SECURITY_SETTINGS)
+                        }
+                        enrollLauncher.launch(intent)
                     }
-                    enrollLauncher.launch(intent)
+                    else -> scope.launch {
+                        state = PasskeyUiState.Loading
+                        PasskeyAuth.authenticate(activity)
+                            .onSuccess { state = PasskeyUiState.Success; onAuthenticated() }
+                            .onFailure { state = PasskeyUiState.Error(it.message ?: "Error de autenticación") }
+                    }
                 }
-                else -> scope.launch {
-                    state = PasskeyUiState.Loading
-                    PasskeyAuth.authenticate(activity)
-                        .onSuccess { state = PasskeyUiState.Success; onAuthenticated() }
-                        .onFailure { state = PasskeyUiState.Error(it.message ?: "Error de autenticación") }
-                }
-            }
-        },
-    )
+            },
+        )
+        PrivacyOverlay(enabled = config.enablePrivacyOverlay)
+    }
 }

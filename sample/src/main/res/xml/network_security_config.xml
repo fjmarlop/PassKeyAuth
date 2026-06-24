@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config (ADR-015, bloque C2).
+
+    base-config: prohíbe tráfico en claro en toda la app. Toda comunicación
+    (Firebase Auth, Firestore) viaja sobre TLS.
+
+    Certificate pinning (bloque C1): la sección domain-config de abajo está
+    PREPARADA pero comentada. Activarla requiere obtener los pines SHA-256
+    reales de los certificados de Google y un pin de backup, además de un
+    proceso de rotación documentado. Activar con pines incorrectos DEJA LA APP
+    INUTILIZABLE (bricking), por eso se entrega como plantilla, no activa.
+
+    Para obtener un pin:
+      openssl s_client -connect firestore.googleapis.com:443 -servername firestore.googleapis.com \
+        | openssl x509 -pubkey -noout \
+        | openssl pkey -pubin -outform der \
+        | openssl dgst -sha256 -binary | openssl enc -base64
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!--
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">firebaseio.com</domain>
+        <domain includeSubdomains="true">firebaseapp.com</domain>
+        <pin-set expiration="2027-01-01">
+            <pin digest="SHA-256">PIN_PRIMARIO_AQUI=</pin>
+            <pin digest="SHA-256">PIN_BACKUP_AQUI=</pin>
+        </pin-set>
+    </domain-config>
+    -->
+</network-security-config>

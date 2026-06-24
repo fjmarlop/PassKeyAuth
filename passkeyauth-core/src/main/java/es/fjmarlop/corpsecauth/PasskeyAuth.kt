@@ -97,6 +97,19 @@ object PasskeyAuth {
 
             println("ðŸ” PasskeyAuth: Inicializando SDK...")
 
+            // Comprobación de integridad del entorno antes de operar (ADR-015).
+            // Falla la inicialización si la política es Block y se detecta un
+            // entorno comprometido (root, hooking, emulador o depurador en release).
+            es.fjmarlop.corpsecauth.core.security.IntegrityGuard.check(
+                context = context.applicationContext,
+                rootPolicy = config.rootPolicy,
+                emulatorPolicy = config.emulatorPolicy,
+                isDebugBuild = es.fjmarlop.corpsecauth.core.BuildConfig.DEBUG,
+            ).getOrElse { integrityError ->
+                println("PasskeyAuth: Integridad comprometida: ${integrityError.message}")
+                return Result.failure(integrityError)
+            }
+
             appContext = context.applicationContext
             this.config = config
 
@@ -181,8 +194,11 @@ object PasskeyAuth {
                 return Result.failure(error)
             }
 
+            // Descifrar el token prueba que la biometría tuvo éxito y la clave es
+            // válida. No reusamos el plaintext: lo borramos del heap de inmediato
+            // (defensa frente a heap dumps — ADR-015, bloque D).
             val tokenBytes = cipher.doFinal(encryptedData.ciphertext)
-            val token = String(tokenBytes, Charsets.UTF_8)
+            tokenBytes.fill(0)
 
             val currentUser = authBackend.getCurrentUser()
                 ?: return Result.failure(

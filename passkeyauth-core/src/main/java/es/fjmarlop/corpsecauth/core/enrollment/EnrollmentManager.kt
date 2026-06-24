@@ -95,7 +95,10 @@ internal class EnrollmentManager private constructor(
 
             val encryptedBase64 = try {
                 val token = session.idToken
-                val ciphertext = authenticatedCipher.doFinal(token.toByteArray(Charsets.UTF_8))
+                // Plaintext del token: lo borramos del heap tras cifrar (ADR-015, bloque D).
+                val tokenBytes = token.toByteArray(Charsets.UTF_8)
+                val ciphertext = authenticatedCipher.doFinal(tokenBytes)
+                tokenBytes.fill(0)
                 val iv = authenticatedCipher.iv
 
                 // Usamos java.util.Base64 (no android.util.Base64) para portabilidad JVM.

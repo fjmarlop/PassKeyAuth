@@ -3,14 +3,14 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-blue.svg)](https://kotlinlang.org)
-[![Tests](https://img.shields.io/badge/Tests-73%20JVM%2FRobolectric%20%2B%2012%20lint%20%2B%208%20instrumented-brightgreen.svg)](docs/adr/011-testing-stack-and-strategy.md)
+[![Tests](https://img.shields.io/badge/Tests-121%20JVM%2FRobolectric%20%2B%2012%20lint%20%2B%208%20instrumented-brightgreen.svg)](docs/adr/011-testing-stack-and-strategy.md)
 [![CI](https://github.com/fjmarlop/PassKeyAuth/actions/workflows/ci.yml/badge.svg)](https://github.com/fjmarlop/PassKeyAuth/actions/workflows/ci.yml)
 
 Librería Android para autenticación sin contraseñas usando biometría hardware-backed y Firebase, diseñada para entornos enterprise con modelo "1 user = 1 device".
 
 ## 🎯 Estado del Proyecto
 
-**Versión actual:** 0.2.1-alpha
+**Versión actual:** 0.3.0-alpha
 
 ### ✅ Completado
 - [x] Arquitectura multi-módulo con interfaces internas para testabilidad
@@ -18,15 +18,17 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 - [x] PasskeyAuth API pública (estable)
 - [x] Passwordless REAL (sin password de usuario)
 - [x] Session timeout configurable
-- [x] Sample app funcional
-- [x] **Suite de tests automatizados completa:** 73 JVM/Robolectric (EnrollmentManager, SecureStorage, `FirebaseAuthBackend`, `FirestoreDeviceRegistry`, facade `PasskeyAuth`) + 12 lint rules + 8 instrumented (StrongBox + TEE)
-- [x] **GitHub Actions CI:** `.github/workflows/ci.yml` — 85 tests en &lt;2 min, cancela runs obsoletos automáticamente
+- [x] **Módulo `passkeyauth-ui`:** composables primitivos (`PasskeySignInScreen`, `PasskeyEnrollScreen`) + launcher híbrido (`PasskeyAuthContract`) + theming zero-config
+- [x] **Sample app refactorizada:** wiring directo al SDK UI, diseño visual minimalista, edge-to-edge (API 35)
+- [x] **Security hardening (integridad + privacidad):** root/emulator/hooking detection, anti-debug, FLAG_SECURE, privacy overlay, memory zeroing (ADR-015)
+- [x] **Suite de tests automatizados completa:** 121 JVM/Robolectric (core + UI Compose Robolectric) + 12 lint rules + 8 instrumented (StrongBox + TEE)
+- [x] **GitHub Actions CI:** `.github/workflows/ci.yml` — verde en cada push/PR
 - [x] **Manual smoke test checklist** para release (10 escenarios E2E con BiometricPrompt)
-- [x] 12 ADRs documentados
+- [x] 15 ADRs documentados
 - [x] Documentación exhaustiva
 
 ### 🚧 En Desarrollo
-- [ ] Security hardening (root detection, certificate pinning, etc)
+- [ ] Security hardening — fase 2: certificate pinning activo, key attestation
 - [ ] Maven Central publishing
 
 ---
@@ -35,8 +37,8 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 ```
 PasskeyAuth/
 ├── passkeyauth-core/      # Lógica de autenticación (sin UI)
-├── passkeyauth-ui/        # Componentes Compose (futuro)
-└── sample/                # App de demostración
+├── passkeyauth-ui/        # Componentes Compose — PasskeySignInScreen, PasskeyEnrollScreen, PasskeyAuthContract
+└── sample/                # App de demostración (wiring directo al SDK UI)
 ```
 
 ### Módulo Core (passkeyauth-core)

@@ -9,6 +9,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased] — v0.3.0
 
+### 🛡️ Security Hardening — integridad del entorno y privacidad (ADR-015)
+
+#### Core (`passkeyauth-core`)
+
+- **`IntegrityGuard`** — comprobación de integridad en `PasskeyAuth.initialize()`. Falla el arranque (según política) si el entorno está comprometido
+- **`RootDetector`** — binarios `su`/`busybox`, apps de root (Magisk, SuperSU…), `Build.TAGS=test-keys`
+- **`HookDetector`** — artefactos de Frida, paquetes Xposed/LSPosed, clases `XposedBridge`
+- **`EmulatorDetector`** — heurística sobre propiedades de `Build`
+- **Anti-debug** — invariante en builds de release (depurador adjunto → fallo)
+- **`IntegrityException`** sealed (`RootDetected` / `EmulatorDetected` / `HookingDetected` / `DebuggerAttached`)
+- **`PasskeyAuthConfig` ampliado** — `rootPolicy: RootPolicy`, `emulatorPolicy: EmulatorPolicy`, `enablePrivacyOverlay: Boolean`
+- **Memory zeroing** — el plaintext del token se borra del heap (`ByteArray.fill(0)`) tras cifrar (enrollment) y tras descifrar (login)
+- Detectores con dependencias inyectables → lógica de decisión pura testeable en JVM (36 tests nuevos)
+
+#### UI (`passkeyauth-ui`)
+
+- **`FLAG_SECURE`** en `PasskeyAuthActivity` — bloquea screenshots, grabación y preview del app switcher (invariante)
+- **`PrivacyOverlay`** — superficie opaca al pasar a segundo plano (`ON_PAUSE`), gobernada por `enablePrivacyOverlay`
+
+#### Sample
+
+- `FLAG_SECURE` en `MainActivity`; `allowBackup=false` + `fullBackupContent=false`
+- `network_security_config.xml` — prohíbe tráfico en claro; plantilla de certificate pinning comentada
+- Limpieza del portapapeles en `CredentialsScreen` al pasar a background
+
 ### ✨ Módulo `passkeyauth-ui` + Core foundations (ADR-013/014)
 
 #### Core (`passkeyauth-core`)

@@ -1,14 +1,18 @@
 package es.fjmarlop.corpsecauth.ui.enroll
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import es.fjmarlop.corpsecauth.PasskeyAuth
 import es.fjmarlop.corpsecauth.core.models.EnrollmentState
+import es.fjmarlop.corpsecauth.ui.privacy.PrivacyOverlay
 import es.fjmarlop.corpsecauth.ui.signin.PasskeySignInScaffold
 import es.fjmarlop.corpsecauth.ui.signin.PasskeyUiState
 
@@ -39,10 +43,14 @@ fun PasskeyEnrollScreen(
         }
     }
 
-    PasskeySignInScaffold(
-        state = state,
-        allowHostFallback = false,
-        onPrimaryAction = {},
-        onHostFallback = {},
-    )
+    Box(Modifier.fillMaxSize()) {
+        PasskeySignInScaffold(
+            state = state,
+            allowHostFallback = false,
+            onPrimaryAction = {},
+            onHostFallback = {},
+        )
+        // El enrollment maneja la ceremonia biométrica: overlay de privacidad siempre activo.
+        PrivacyOverlay(enabled = true)
+    }
 }

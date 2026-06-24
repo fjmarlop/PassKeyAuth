@@ -65,20 +65,21 @@ Para cada escenario fallido recolectar:
 **Pre-condición:** App recién instalada, sin enrollment previo.
 
 **Pasos:**
-1. Abrir sample app
-2. Entrar email + password temporal del usuario Firebase
-3. Pulsar "Enroll Device"
-4. Cuando aparezca `BiometricPrompt`, autenticar con huella registrada
-5. Esperar a que el flow complete
+1. Abrir sample app → `SplashScreen` detecta no enrollado → navega a `CredentialsScreen`
+2. Verificar que los campos email y contraseña temporal están presentes (prefilled con valores de test)
+3. Pulsar "Continuar"
+4. `PasskeyEnrollScreen` inicia la ceremonia — cuando aparezca `BiometricPrompt`, autenticar con huella registrada
+5. Esperar a que el flow complete → debe navegar directamente a `HomeScreen` (sin pedir huella de nuevo)
 
 **Expected:**
 - Estados emitidos en orden: `ValidatingCredentials` → `GeneratingCryptoKey` → `AwaitingBiometric` → `BindingDevice` → `Success`
-- Navega a Home screen
+- Navega a `HomeScreen` directamente tras el enrollment (sin pasar por Login)
 - En Firebase Console: documento creado en `devices/{userId}/history/current` con `isActive=true` y `deviceId` = ANDROID_ID del device
 - En logcat: sin excepciones; mensajes `✅` en cada paso
 
 **Pass criteria:**
-- [ ] Llega a Home screen
+- [ ] `CredentialsScreen` muestra email + password con botón "Continuar"
+- [ ] Llega a `HomeScreen` tras la huella (sin segundo BiometricPrompt)
 - [ ] Documento Firestore correcto
 - [ ] Logcat sin errores
 
@@ -91,19 +92,21 @@ Para cada escenario fallido recolectar:
 **Pasos:**
 1. Cerrar la app (swipe en recents, no logout)
 2. Reabrir sample app
-3. Esperar al SplashScreen → debe navegar a Login (NO a Home directamente, ver [ADR-009](adr/009-client-side-security-responsibility.md))
-4. Pulsar "Login with biometric"
-5. Autenticar con huella
+3. `SplashScreen` detecta device enrollado → navega a `PasskeySignInScreen` (NO a Home directamente, ver [ADR-009](adr/009-client-side-security-responsibility.md))
+4. Pulsar "Acceder"
+5. Autenticar con huella en el `BiometricPrompt`
 
 **Expected:**
-- BiometricPrompt aparece pidiendo huella (subtitle: "Identifícate para acceder")
-- Tras autenticar: navega a Home con usuario logueado
+- `PasskeySignInScreen` muestra icono de huella + CTA "Acceder"
+- BiometricPrompt aparece pidiendo huella
+- Tras autenticar: navega a `HomeScreen`
 - Logcat: cipher descifrado correctamente, no excepciones
 
 **Pass criteria:**
-- [ ] BiometricPrompt aparece (no salto directo a Home)
-- [ ] Tras autenticar llega a Home
-- [ ] **NO se pide email/password de nuevo** (es passwordless real)
+- [ ] `PasskeySignInScreen` aparece con CTA "Acceder" (no salto directo a Home)
+- [ ] BiometricPrompt aparece al pulsar "Acceder"
+- [ ] Tras autenticar llega a `HomeScreen`
+- [ ] **NO se pide email/password** (es passwordless real)
 
 ---
 
@@ -200,24 +203,22 @@ Para cada escenario fallido recolectar:
 **Pre-condición:** S1 completado y usuario en Home.
 
 **Pasos:**
-1. Pulsar "Logout" en Home
-2. Verificar navegación a Login screen
-3. Hacer login con biometric (S2) → debe funcionar
-4. Pulsar "Unenroll device"
-5. Confirmar unenroll
-6. Verificar navegación a EnrollmentScreen
-7. Re-enrollment completo del mismo usuario (S1)
+1. Pulsar "Cerrar sesión" en `HomeScreen`
+2. Verificar navegación a `CredentialsScreen` (NO a `PasskeySignInScreen` — el logout borra el enrollment)
+3. Introducir credenciales y pulsar "Continuar"
+4. Re-enrollment completo del mismo usuario (S1)
 
 **Expected:**
-- Logout: sesión Firebase cerrada, BiometricPrompt NO se invoca
-- Unenroll: limpia DataStore, KeyStore, marca `isActive=false` en Firestore
+- Logout: sesión Firebase cerrada, device queda desenrolado, BiometricPrompt NO se invoca
+- Navegación directa a `CredentialsScreen` (no bucle de error en Login)
 - Re-enrollment: genera nueva clave (puede ser distinta a la original)
 - En Firestore: documento `devices/{userId}/history/current` actualizado con nuevo timestamp
 
 **Pass criteria:**
-- [ ] Logout funciona sin pedir biometría
-- [ ] Unenroll limpia estado local y remoto
+- [ ] Logout navega a `CredentialsScreen` (no a `PasskeySignInScreen`)
+- [ ] No aparece bucle de error/reintentar
 - [ ] Re-enrollment del mismo usuario funciona
+- [ ] Mensaje de soporte visible en `CredentialsScreen` ("¿No tienes contraseña temporal?")
 
 ---
 
@@ -285,6 +286,29 @@ Para cada escenario fallido recolectar:
 - [ ] No crash durante la rotación
 - [ ] UI consistente tras la rotación
 - [ ] Flow puede continuar o reintentar
+
+---
+
+### S11 — Bloqueo por integridad del entorno (ADR-015)
+
+**Pre-condición:** Device rooteado (o emulador con `Default`/`Custom` config), o Frida/Xposed instalado.
+
+**Pasos:**
+1. Abrir la sample app en el device comprometido
+
+**Expected:**
+- `PasskeyAuth.initialize()` devuelve `Result.failure(IntegrityException)` (en logcat: "Integridad comprometida")
+- La app muestra `SecurityBlockScreen` con mensaje amigable ("Este dispositivo no es seguro…") y botón "Cerrar aplicación"
+- **NO** navega a Credentials ni intenta enrolar; **NO** crashea con `IllegalStateException`
+- Al pulsar "Cerrar aplicación" la app se cierra y se elimina de recientes
+
+**Pass criteria:**
+- [ ] Aparece la pantalla de bloqueo (no crash, no nav graph normal)
+- [ ] El mensaje corresponde al tipo de compromiso (root/emulador/hooking)
+- [ ] "Cerrar aplicación" cierra limpiamente
+- [ ] En un device limpio, la app arranca normal (sin falso positivo)
+
+**Nota:** para forzar el bloqueo en emulador, usar `PasskeyAuthConfig.Default` (emulatorPolicy=Block) en vez de `Custom`.
 
 ---
 
