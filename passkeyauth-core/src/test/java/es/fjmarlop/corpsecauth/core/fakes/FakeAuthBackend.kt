@@ -1,10 +1,10 @@
 package es.fjmarlop.corpsecauth.core.fakes
 
+import es.fjmarlop.corpsecauth.AuthBackend
+import es.fjmarlop.corpsecauth.AuthSession
+import es.fjmarlop.corpsecauth.Credentials
 import es.fjmarlop.corpsecauth.core.errors.FirebaseException
-import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
-import es.fjmarlop.corpsecauth.core.models.AuthSession
 import es.fjmarlop.corpsecauth.core.models.AuthUser
-import es.fjmarlop.corpsecauth.core.models.Credentials
 
 /**
  * Fake JVM de [AuthBackend] para tests sin Firebase emulator.

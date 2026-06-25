@@ -4,10 +4,12 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseUser
+import es.fjmarlop.corpsecauth.AuthBackend
+import es.fjmarlop.corpsecauth.AuthSession
+import es.fjmarlop.corpsecauth.Credentials
+import es.fjmarlop.corpsecauth.PasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.errors.FirebaseException
-import es.fjmarlop.corpsecauth.core.models.AuthSession
 import es.fjmarlop.corpsecauth.core.models.AuthUser
-import es.fjmarlop.corpsecauth.core.models.Credentials
 import kotlinx.coroutines.tasks.await
 import java.security.SecureRandom
 import kotlin.coroutines.resume

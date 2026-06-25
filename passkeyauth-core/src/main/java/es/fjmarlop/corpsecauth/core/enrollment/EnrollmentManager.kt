@@ -8,11 +8,11 @@ import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.errors.CryptoException
 import es.fjmarlop.corpsecauth.core.errors.EnrollmentException
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
-import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
-import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
-import es.fjmarlop.corpsecauth.core.firebase.PasswordManagementBackend
+import es.fjmarlop.corpsecauth.AuthBackend
+import es.fjmarlop.corpsecauth.Credentials
+import es.fjmarlop.corpsecauth.DeviceRegistry
+import es.fjmarlop.corpsecauth.PasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
-import es.fjmarlop.corpsecauth.core.models.Credentials
 import es.fjmarlop.corpsecauth.core.models.EnrollmentState
 import es.fjmarlop.corpsecauth.core.storage.SecureStorage
 import kotlinx.coroutines.flow.Flow

@@ -3,6 +3,7 @@ package es.fjmarlop.corpsecauth.core.firebase
 import android.content.Context
 import android.provider.Settings
 import com.google.firebase.firestore.FirebaseFirestore
+import es.fjmarlop.corpsecauth.DeviceRegistry
 import es.fjmarlop.corpsecauth.core.errors.DeviceException
 import es.fjmarlop.corpsecauth.core.models.DeviceInfo
 import kotlinx.coroutines.Dispatchers

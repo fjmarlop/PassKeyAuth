@@ -10,10 +10,8 @@ import es.fjmarlop.corpsecauth.core.crypto.EncryptedData
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.enrollment.EnrollmentManager
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
-import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
-import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
 import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthBackend
-import es.fjmarlop.corpsecauth.core.firebase.PasswordManagementBackend
+import es.fjmarlop.corpsecauth.core.firebase.FirestoreDeviceRegistry
 import es.fjmarlop.corpsecauth.core.models.AuthResult
 import es.fjmarlop.corpsecauth.core.models.AuthUser
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
@@ -65,7 +63,7 @@ object PasskeyAuth {
 
     private var _deviceRegistry: DeviceRegistry? = null
     private val deviceRegistry: DeviceRegistry
-        get() = _deviceRegistry ?: DeviceRegistry.create(requireContext()).also { _deviceRegistry = it }
+        get() = _deviceRegistry ?: FirestoreDeviceRegistry.create(requireContext()).also { _deviceRegistry = it }
 
     private var lastActivityTimestamp: Long = System.currentTimeMillis()
     private var justAuthenticated: Boolean = false
