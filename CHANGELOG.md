@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [0.4.0] — 2026-06-25
+
+### Added
+- `AuthBackend`, `DeviceRegistry`, `PasswordManagementBackend` como interfaces públicas en `es.fjmarlop.corpsecauth` — el integrador puede implementar backends alternativos (Keycloak, OIDC custom, REST propio).
+- `Credentials` y `AuthSession` pasan a `public` — necesarios para implementar `AuthBackend`.
+- `PasskeyAuth.initialize()` acepta `authBackend: AuthBackend?` y `deviceRegistry: DeviceRegistry?` opcionales. Si no se pasan, Firebase sigue siendo el backend por defecto (sin cambios breaking).
+
+### Changed
+- Las interfaces `AuthBackend`, `DeviceRegistry`, `PasswordManagementBackend` se mueven de `core.firebase` (interno) a `es.fjmarlop.corpsecauth` (público). Las implementaciones Firebase quedan como `internal`.
+- `Credentials` y `AuthSession` se mueven de `core.models` a `es.fjmarlop.corpsecauth`.
+
+### Internal
+- ADR-016: documenta la decisión de backend-agnostic y las limitaciones conocidas para v0.5.0.
+
+---
+
 ## [Unreleased] — v0.3.0
 
 ### 🛡️ Security Hardening — integridad del entorno y privacidad (ADR-015)
