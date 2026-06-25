@@ -12,6 +12,7 @@ import es.fjmarlop.corpsecauth.core.errors.FirebaseException
 import es.fjmarlop.corpsecauth.core.models.AuthUser
 import kotlinx.coroutines.tasks.await
 import java.security.SecureRandom
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -86,7 +87,7 @@ internal class FirebaseAuthBackend(
      */
     private fun completeSessionWithToken(
         firebaseUser: FirebaseUser,
-        continuation: kotlin.coroutines.Continuation<Result<AuthSession>>
+        continuation: Continuation<Result<AuthSession>>
     ) {
         firebaseUser.getIdToken(false)
             .addOnSuccessListener { tokenResult ->
