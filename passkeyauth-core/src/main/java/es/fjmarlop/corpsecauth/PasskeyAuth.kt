@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 
 object PasskeyAuth {
 
-    private var isInitialized = false
+    @Volatile private var isInitialized = false
     private var appContext: Context? = null
     private var config: PasskeyAuthConfig? = null
     
@@ -47,12 +47,16 @@ object PasskeyAuth {
 
     // Backends inyectados por el integrador via initialize() (ADR-016).
     // null = usar implementacion Firebase por defecto.
-    private var _customAuthBackend: AuthBackend? = null
-    private var _customDeviceRegistry: DeviceRegistry? = null
+    @Volatile private var _customAuthBackend: AuthBackend? = null
+    @Volatile private var _customDeviceRegistry: DeviceRegistry? = null
 
     private val authBackend: AuthBackend
         get() = _customAuthBackend ?: firebaseAuthBackend
 
+    // Si el authBackend custom no implementa PasswordManagementBackend (p.ej. backends OAuth2/OIDC),
+    // cae a firebaseAuthBackend como fallback. El paso de invalidacion de password temporal
+    // (enrollment step 2) esta actualmente comentado en EnrollmentManager, por lo que esta
+    // ruta no es activa. En v0.5.0 se revisara cuando se active el paso 2.
     private val passwordManagement: PasswordManagementBackend
         get() = (_customAuthBackend as? PasswordManagementBackend) ?: firebaseAuthBackend
 
