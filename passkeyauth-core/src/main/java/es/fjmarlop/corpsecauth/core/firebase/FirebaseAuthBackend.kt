@@ -10,7 +10,6 @@ import es.fjmarlop.corpsecauth.Credentials
 import es.fjmarlop.corpsecauth.PasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.errors.FirebaseException
 import es.fjmarlop.corpsecauth.core.models.AuthUser
-import kotlinx.coroutines.tasks.await
 import java.security.SecureRandom
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
