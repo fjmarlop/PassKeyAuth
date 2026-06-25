@@ -26,9 +26,9 @@ Implementado y testeado (ver [ADR-015](../adr/015-runtime-integrity-and-privacy-
 | D1 — Memory zeroing | ✅ token plaintext borrado en enrollment + login |
 | E2 — Clipboard | ✅ limpieza en `CredentialsScreen` al background |
 | F1 — Backup off | ✅ `allowBackup=false` + `fullBackupContent=false` |
-| C1 — Cert pinning | ⏳ plantilla comentada (requiere pines reales) |
-| D2 — Key attestation | ⏳ pendiente |
-| E1 — Tapjacking | ⏳ pendiente (verificar cobertura de `androidx.biometric`) |
+| C1 — Cert pinning | 📖 documentado como responsabilidad del integrador en `DEVELOPMENT.md` |
+| D2 — Key attestation | ✅ `KeyAttestationVerifier` + `HardwareSecurityLevel`; integrado en `AndroidKeyStoreManager.generateKey()`; 6 tests JVM (API 28 + API 31) |
+| E1 — Tapjacking | ✅ `dispatchTouchEvent` en `PasskeyAuthActivity` + `MainActivity`; 2 tests Robolectric |
 | F2 — exported audit | ✅ ya correcto (`PasskeyAuthActivity exported=false`) |
 
 Leyenda detalle de tareas:

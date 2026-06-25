@@ -2,7 +2,9 @@ package es.fjmarlop.corpsecauth.ui.launcher
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -58,6 +60,18 @@ internal class PasskeyAuthActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    // SEGURIDAD (ADR-015, bloque E1): rechaza toques cuando la ventana está cubierta
+    // por un overlay de otra app (tapjacking). FLAG_WINDOW_IS_OBSCURED cubre el caso
+    // total; FLAG_WINDOW_IS_PARTIALLY_OBSCURED (API 29+) cubre overlays parciales.
+    // BiometricPrompt maneja su propio diálogo fuera de esta ventana — esta protección
+    // cubre las pantallas propias del SDK (PasskeySignInScreen, PasskeyEnrollScreen).
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED != 0) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ev.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED != 0) return false
+        return super.dispatchTouchEvent(ev)
     }
 
     companion object {
