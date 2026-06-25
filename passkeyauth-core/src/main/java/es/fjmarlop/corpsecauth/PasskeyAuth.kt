@@ -11,7 +11,6 @@ import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.enrollment.EnrollmentManager
 import es.fjmarlop.corpsecauth.core.errors.PasskeyAuthException
 import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthBackend
-import es.fjmarlop.corpsecauth.core.firebase.FirestoreDeviceRegistry
 import es.fjmarlop.corpsecauth.core.models.AuthResult
 import es.fjmarlop.corpsecauth.core.models.AuthUser
 import es.fjmarlop.corpsecauth.core.models.BiometricConfig
@@ -46,8 +45,16 @@ object PasskeyAuth {
     private val firebaseAuthBackend: FirebaseAuthBackend
         get() = _firebaseAuthBackend ?: FirebaseAuthBackend.createDefault().also { _firebaseAuthBackend = it }
 
-    private val authBackend: AuthBackend get() = firebaseAuthBackend
-    private val passwordManagement: PasswordManagementBackend get() = firebaseAuthBackend
+    // Backends inyectados por el integrador via initialize() (ADR-016).
+    // null = usar implementacion Firebase por defecto.
+    private var _customAuthBackend: AuthBackend? = null
+    private var _customDeviceRegistry: DeviceRegistry? = null
+
+    private val authBackend: AuthBackend
+        get() = _customAuthBackend ?: firebaseAuthBackend
+
+    private val passwordManagement: PasswordManagementBackend
+        get() = (_customAuthBackend as? PasswordManagementBackend) ?: firebaseAuthBackend
 
     private var _keyStoreManager: KeyStoreManager? = null
     private val keyStoreManager: KeyStoreManager
@@ -63,7 +70,9 @@ object PasskeyAuth {
 
     private var _deviceRegistry: DeviceRegistry? = null
     private val deviceRegistry: DeviceRegistry
-        get() = _deviceRegistry ?: FirestoreDeviceRegistry.create(requireContext()).also { _deviceRegistry = it }
+        get() = _customDeviceRegistry
+            ?: _deviceRegistry
+            ?: DeviceRegistry.createDefault(requireContext()).also { _deviceRegistry = it }
 
     private var lastActivityTimestamp: Long = System.currentTimeMillis()
     private var justAuthenticated: Boolean = false
@@ -84,7 +93,9 @@ object PasskeyAuth {
 
     suspend fun initialize(
         context: Context,
-        config: PasskeyAuthConfig = PasskeyAuthConfig.Default
+        config: PasskeyAuthConfig = PasskeyAuthConfig.Default,
+        authBackend: AuthBackend? = null,
+        deviceRegistry: DeviceRegistry? = null
     ): Result<Unit> {
         return try {
             if (isInitialized) {
@@ -110,6 +121,8 @@ object PasskeyAuth {
 
             appContext = context.applicationContext
             this.config = config
+            _customAuthBackend = authBackend
+            _customDeviceRegistry = deviceRegistry
 
             refreshAuthState()
 
@@ -435,5 +448,7 @@ object PasskeyAuth {
         _cryptoProvider = null
         _secureStorage = null
         _deviceRegistry = null
+        _customAuthBackend = null
+        _customDeviceRegistry = null
     }
 }

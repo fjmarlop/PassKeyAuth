@@ -1,5 +1,6 @@
 package es.fjmarlop.corpsecauth
 
+import android.content.Context
 import es.fjmarlop.corpsecauth.core.models.DeviceInfo
 
 /**
@@ -36,4 +37,13 @@ interface DeviceRegistry {
      * Devuelve la informacion del dispositivo registrado para el usuario, o `null`.
      */
     suspend fun getDeviceInfo(userId: String): Result<DeviceInfo?>
+
+    companion object {
+        /**
+         * Crea la implementacion por defecto (Firestore).
+         * Llamado internamente por [PasskeyAuth] cuando no se inyecta un registry custom.
+         */
+        fun createDefault(context: Context): DeviceRegistry =
+            es.fjmarlop.corpsecauth.core.firebase.FirestoreDeviceRegistry.create(context)
+    }
 }
