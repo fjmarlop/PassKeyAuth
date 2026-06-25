@@ -121,12 +121,32 @@ internal class PasskeyAuthFacadeBackendInjectionTest {
     }
 
     // ============================================================
-    // Test 2: deviceRegistry custom → Firestore no se usa
+    // Test 2: deviceRegistry custom → Firestore no se usa + validateDevice se llama
     // ============================================================
 
     @Test
-    fun `dado deviceRegistry custom cuando initialize entonces FirestoreDeviceRegistry create nunca se llama`() = runTest {
-        val customRegistry = InMemoryDeviceRegistry()
+    fun `dado deviceRegistry custom cuando initialize entonces FirestoreDeviceRegistry no se instancia y validateDevice se invoca`() = runTest {
+        // Configurar estado "enrolled": sesion guardada + clave en KeyStore + userId no nulo.
+        coEvery { secureStorageMock.hasStoredSession() } returns true
+        coEvery { secureStorageMock.loadUserId() } returns Result.success("uid-enrolled-user")
+        fakeKeyStoreManager.forceKeyExists()
+
+        // Backend con usuario forzado para que refreshAuthState() pase el check currentUser == null.
+        val fakeBackend = FakeAuthBackend().apply {
+            forceCurrentUser(
+                AuthUser(
+                    uid = "uid-enrolled-user",
+                    email = "enrolled@empresa.com",
+                    displayName = "Enrolled User",
+                    isEmailVerified = true
+                )
+            )
+        }
+
+        // Registry custom con validateDevice configurado como exito (dispositivo valido).
+        val customRegistry = InMemoryDeviceRegistry().apply {
+            validateDeviceResult = Result.success(true)
+        }
 
         PasskeyAuth.initialize(
             context = contextMock,
@@ -134,9 +154,17 @@ internal class PasskeyAuthFacadeBackendInjectionTest {
                 rootPolicy = RootPolicy.Allow,
                 emulatorPolicy = EmulatorPolicy.Allow
             ),
+            authBackend = fakeBackend,
             deviceRegistry = customRegistry
         ).getOrThrow()
 
+        // refreshAuthState() corre en Dispatchers.IO (scope real); esperar a que termine.
+        Thread.sleep(300)
+
+        // Verificacion 1: el registry custom fue realmente usado para validar el dispositivo.
+        assertThat(customRegistry.validateDeviceCallCount).isEqualTo(1)
+
+        // Verificacion 2: Firestore nunca se instancio porque se inyecto un registry custom.
         verify(exactly = 0) { FirestoreDeviceRegistry.create(any()) }
     }
 
