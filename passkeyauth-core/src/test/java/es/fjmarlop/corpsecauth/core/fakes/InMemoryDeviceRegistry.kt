@@ -1,7 +1,7 @@
 package es.fjmarlop.corpsecauth.core.fakes
 
+import es.fjmarlop.corpsecauth.DeviceRegistry
 import es.fjmarlop.corpsecauth.core.errors.DeviceException
-import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
 import es.fjmarlop.corpsecauth.core.models.DeviceInfo
 
 /**

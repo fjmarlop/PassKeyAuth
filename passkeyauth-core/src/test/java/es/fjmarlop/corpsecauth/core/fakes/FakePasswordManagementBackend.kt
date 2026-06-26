@@ -1,6 +1,6 @@
 package es.fjmarlop.corpsecauth.core.fakes
 
-import es.fjmarlop.corpsecauth.core.firebase.PasswordManagementBackend
+import es.fjmarlop.corpsecauth.PasswordManagementBackend
 
 /**
  * Fake JVM de [PasswordManagementBackend].

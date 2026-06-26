@@ -6,10 +6,9 @@ import com.google.common.truth.Truth.assertThat
 import es.fjmarlop.corpsecauth.core.crypto.CryptoProvider
 import es.fjmarlop.corpsecauth.core.crypto.KeyStoreManager
 import es.fjmarlop.corpsecauth.core.fakes.FakeKeyStoreManager
-import es.fjmarlop.corpsecauth.core.fakes.InMemoryDeviceRegistry
-import es.fjmarlop.corpsecauth.core.firebase.AuthBackend
-import es.fjmarlop.corpsecauth.core.firebase.DeviceRegistry
 import es.fjmarlop.corpsecauth.core.firebase.FirebaseAuthBackend
+import es.fjmarlop.corpsecauth.DeviceRegistry
+import es.fjmarlop.corpsecauth.core.firebase.FirestoreDeviceRegistry
 import es.fjmarlop.corpsecauth.core.models.AuthResult
 import es.fjmarlop.corpsecauth.core.models.AuthUser
 import es.fjmarlop.corpsecauth.core.storage.SecureStorage
@@ -55,7 +54,7 @@ internal class PasskeyAuthFacadeTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var fakeKeyStoreManager: FakeKeyStoreManager
-    private lateinit var fakeDeviceRegistry: InMemoryDeviceRegistry
+    private lateinit var fakeDeviceRegistry: DeviceRegistry
     private lateinit var firebaseAuthBackendMock: FirebaseAuthBackend
     private lateinit var secureStorageMock: SecureStorage
     private lateinit var cryptoProviderMock: CryptoProvider
@@ -74,7 +73,7 @@ internal class PasskeyAuthFacadeTest {
 
         // Fakes
         fakeKeyStoreManager = FakeKeyStoreManager()
-        fakeDeviceRegistry = InMemoryDeviceRegistry()
+        fakeDeviceRegistry = mockk<FirestoreDeviceRegistry>(relaxed = true)
 
         // Mocks (componentes que el facade construye via Companion factories)
         firebaseAuthBackendMock = mockk(relaxed = true)
@@ -117,8 +116,8 @@ internal class PasskeyAuthFacadeTest {
         mockkObject(SecureStorage.Companion)
         every { SecureStorage.create(any()) } returns secureStorageMock
 
-        mockkObject(DeviceRegistry.Companion)
-        every { DeviceRegistry.create(any()) } returns fakeDeviceRegistry
+        mockkObject(FirestoreDeviceRegistry.Companion)
+        every { FirestoreDeviceRegistry.create(any()) } returns (fakeDeviceRegistry as FirestoreDeviceRegistry)
     }
 
     @After

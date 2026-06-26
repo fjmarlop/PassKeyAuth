@@ -11,7 +11,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GetTokenResult
 import es.fjmarlop.corpsecauth.core.errors.FirebaseException
-import es.fjmarlop.corpsecauth.core.models.Credentials
+import es.fjmarlop.corpsecauth.Credentials
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
