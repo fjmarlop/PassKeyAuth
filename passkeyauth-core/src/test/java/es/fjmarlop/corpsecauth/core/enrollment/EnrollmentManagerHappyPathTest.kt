@@ -10,9 +10,9 @@ import es.fjmarlop.corpsecauth.core.fakes.FakeBiometricAuthenticator
 import es.fjmarlop.corpsecauth.core.fakes.FakeKeyStoreManager
 import es.fjmarlop.corpsecauth.core.fakes.FakePasswordManagementBackend
 import es.fjmarlop.corpsecauth.core.fakes.InMemoryDeviceRegistry
-import es.fjmarlop.corpsecauth.core.models.AuthSession
+import es.fjmarlop.corpsecauth.AuthSession
+import es.fjmarlop.corpsecauth.Credentials
 import es.fjmarlop.corpsecauth.core.models.AuthUser
-import es.fjmarlop.corpsecauth.core.models.Credentials
 import es.fjmarlop.corpsecauth.core.models.EnrollmentState
 import es.fjmarlop.corpsecauth.core.storage.SecureStorage
 import es.fjmarlop.corpsecauth.core.support.MainDispatcherRule

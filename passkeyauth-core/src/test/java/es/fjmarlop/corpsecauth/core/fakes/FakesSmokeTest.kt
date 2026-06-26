@@ -1,9 +1,9 @@
 package es.fjmarlop.corpsecauth.core.fakes
 
 import com.google.common.truth.Truth.assertThat
-import es.fjmarlop.corpsecauth.core.models.AuthSession
+import es.fjmarlop.corpsecauth.AuthSession
+import es.fjmarlop.corpsecauth.Credentials
 import es.fjmarlop.corpsecauth.core.models.AuthUser
-import es.fjmarlop.corpsecauth.core.models.Credentials
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
