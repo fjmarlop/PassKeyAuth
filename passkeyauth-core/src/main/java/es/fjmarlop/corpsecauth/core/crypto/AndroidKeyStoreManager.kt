@@ -3,7 +3,6 @@ package es.fjmarlop.corpsecauth.core.crypto
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import es.fjmarlop.corpsecauth.HardwareSecurityLevel
 import es.fjmarlop.corpsecauth.core.errors.CryptoException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
