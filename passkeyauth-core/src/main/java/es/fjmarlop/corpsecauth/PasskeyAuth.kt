@@ -32,7 +32,7 @@ object PasskeyAuth {
     private var appContext: Context? = null
     private var config: PasskeyAuthConfig? = null
 
-    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // Composicion root: una sola instancia Firebase sirve ambas capabilities
     // (autenticacion y gestion de password). Se expone como dos getters tipados
@@ -210,8 +210,8 @@ object PasskeyAuth {
 
             val currentUser = authBackend.getCurrentUser()
                 ?: return Result.failure(
-                    es.fjmarlop.corpsecauth.core.errors.DeviceException.NotEnrolled(
-                        "No hay sesion de usuario activa — dispositivo no enrollado o sesion expirada"
+                    es.fjmarlop.corpsecauth.core.errors.FirebaseException.UserNotFound(
+                        "No hay sesion de usuario activa — la sesion expiro o fue revocada"
                     )
                 )
 
