@@ -44,8 +44,6 @@ internal class FirestoreDeviceRegistry(
 
     override suspend fun bindDevice(userId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            println("🔗 FirestoreDeviceRegistry: Vinculando dispositivo para user: $userId")
-
             val deviceId = getDeviceId()
             val appVersion = getAppVersion()
 
@@ -64,11 +62,9 @@ internal class FirestoreDeviceRegistry(
                 .set(deviceData)
                 .await()
 
-            println("✅ FirestoreDeviceRegistry: Dispositivo vinculado (deviceId: $deviceId)")
             Result.success(deviceId)
 
         } catch (e: Exception) {
-            println("❌ FirestoreDeviceRegistry: Error vinculando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.BindingFailed("Error vinculando dispositivo", e)
             )
@@ -77,8 +73,6 @@ internal class FirestoreDeviceRegistry(
 
     override suspend fun validateDevice(userId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            println("🔍 FirestoreDeviceRegistry: Validando dispositivo para user: $userId")
-
             val currentDeviceId = getDeviceId()
 
             val snapshot = firestore.collection(devicesCollection)
@@ -89,7 +83,6 @@ internal class FirestoreDeviceRegistry(
                 .await()
 
             if (!snapshot.exists()) {
-                println("⚠️ FirestoreDeviceRegistry: Dispositivo no registrado")
                 return@withContext Result.success(false)
             }
 
@@ -98,16 +91,9 @@ internal class FirestoreDeviceRegistry(
 
             val isValid = (registeredDeviceId == currentDeviceId) && isActive
 
-            if (isValid) {
-                println("✅ FirestoreDeviceRegistry: Dispositivo valido")
-            } else {
-                println("🚨 FirestoreDeviceRegistry: Dispositivo NO valido (actual: $currentDeviceId, registrado: $registeredDeviceId, active: $isActive)")
-            }
-
             Result.success(isValid)
 
         } catch (e: Exception) {
-            println("❌ FirestoreDeviceRegistry: Error validando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.ValidationFailed("Error validando dispositivo", e)
             )
@@ -116,8 +102,6 @@ internal class FirestoreDeviceRegistry(
 
     override suspend fun revokeDevice(userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("🗑️ FirestoreDeviceRegistry: Revocando dispositivo para user: $userId")
-
             firestore.collection(devicesCollection)
                 .document(userId)
                 .collection("history")
@@ -125,11 +109,9 @@ internal class FirestoreDeviceRegistry(
                 .update("isActive", false)
                 .await()
 
-            println("✅ FirestoreDeviceRegistry: Dispositivo revocado")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ FirestoreDeviceRegistry: Error revocando dispositivo: ${e.message}")
             Result.failure(
                 DeviceException.BindingFailed("Error revocando dispositivo", e)
             )
@@ -153,7 +135,6 @@ internal class FirestoreDeviceRegistry(
             Result.success(deviceInfo)
 
         } catch (e: Exception) {
-            println("❌ FirestoreDeviceRegistry: Error obteniendo info: ${e.message}")
             Result.failure(
                 DeviceException.ValidationFailed("Error obteniendo informacion del dispositivo", e)
             )

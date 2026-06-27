@@ -55,17 +55,13 @@ internal class SecureStorage(private val context: Context) {
      */
     suspend fun saveEncryptedToken(encryptedTokenBase64: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("💾 SecureStorage: Guardando token cifrado")
-
             context.dataStore.edit { preferences ->
                 preferences[KEY_ENCRYPTED_TOKEN] = encryptedTokenBase64
             }
 
-            println("✅ SecureStorage: Token guardado exitosamente")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error guardando token: ${e.message}")
             Result.failure(e)
         }
     }
@@ -80,16 +76,9 @@ internal class SecureStorage(private val context: Context) {
             val preferences = context.dataStore.data.first()
             val token = preferences[KEY_ENCRYPTED_TOKEN]
 
-            if (token != null) {
-                println("✅ SecureStorage: Token cargado")
-            } else {
-                println("⚠️ SecureStorage: No hay token guardado")
-            }
-
             Result.success(token)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error cargando token: ${e.message}")
             Result.failure(e)
         }
     }
@@ -118,8 +107,6 @@ internal class SecureStorage(private val context: Context) {
      */
     suspend fun saveDeviceId(deviceId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("💾 SecureStorage: Guardando deviceId")
-
             context.dataStore.edit { preferences ->
                 preferences[KEY_DEVICE_ID] = deviceId
             }
@@ -127,7 +114,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error guardando deviceId: ${e.message}")
             Result.failure(e)
         }
     }
@@ -145,7 +131,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(deviceId)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error cargando deviceId: ${e.message}")
             Result.failure(e)
         }
     }
@@ -160,8 +145,6 @@ internal class SecureStorage(private val context: Context) {
      */
     suspend fun saveUserId(userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("💾 SecureStorage: Guardando userId")
-
             context.dataStore.edit { preferences ->
                 preferences[KEY_USER_ID] = userId
             }
@@ -169,7 +152,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error guardando userId: ${e.message}")
             Result.failure(e)
         }
     }
@@ -187,7 +169,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(userId)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error cargando userId: ${e.message}")
             Result.failure(e)
         }
     }
@@ -209,7 +190,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error guardando timestamp: ${e.message}")
             Result.failure(e)
         }
     }
@@ -228,7 +208,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(timestamp)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error cargando timestamp: ${e.message}")
             Result.failure(e)
         }
     }
@@ -254,17 +233,13 @@ internal class SecureStorage(private val context: Context) {
      */
     suspend fun clear(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("🗑️ SecureStorage: Limpiando storage")
-
             context.dataStore.edit { preferences ->
                 preferences.clear()
             }
 
-            println("✅ SecureStorage: Storage limpiado")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error limpiando storage: ${e.message}")
             Result.failure(e)
         }
     }
@@ -278,8 +253,6 @@ internal class SecureStorage(private val context: Context) {
      */
     suspend fun clearToken(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            println("🗑️ SecureStorage: Eliminando token")
-
             context.dataStore.edit { preferences ->
                 preferences.remove(KEY_ENCRYPTED_TOKEN)
                 preferences.remove(KEY_LAST_ACTIVITY)
@@ -288,7 +261,6 @@ internal class SecureStorage(private val context: Context) {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ SecureStorage: Error eliminando token: ${e.message}")
             Result.failure(e)
         }
     }

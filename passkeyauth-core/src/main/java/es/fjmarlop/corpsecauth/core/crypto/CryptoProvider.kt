@@ -57,7 +57,6 @@ internal class CryptoProvider(
 
             // Obtener cipher inicializado para encriptar
             val cipher = keyStoreManager.getEncryptCipher().getOrElse { error ->
-                println("❌ CryptoProvider: Error obteniendo cipher: ${error.message}")
                 return@withContext Result.failure(error)
             }
 
@@ -72,12 +71,10 @@ internal class CryptoProvider(
                 )
 
             val encryptedData = EncryptedData(ciphertext, iv)
-            println("🔐 CryptoProvider: Datos cifrados (${ciphertext.size} bytes)")
 
             Result.success(encryptedData)
 
         } catch (e: Exception) {
-            println("❌ CryptoProvider: Error en cifrado: ${e.message}")
             Result.failure(
                 CryptoException.EncryptionFailed(
                     "Error al cifrar datos: ${e.message}",
@@ -117,7 +114,6 @@ internal class CryptoProvider(
 
             // Obtener cipher inicializado para descifrar
             val cipher = keyStoreManager.getDecryptCipher(encryptedData.iv).getOrElse { error ->
-                println("❌ CryptoProvider: Error obteniendo cipher: ${error.message}")
                 return@withContext Result.failure(error)
             }
 
@@ -125,13 +121,10 @@ internal class CryptoProvider(
             val plaintextBytes = cipher.doFinal(encryptedData.ciphertext)
             val plaintext = String(plaintextBytes, Charsets.UTF_8)
 
-            println("🔓 CryptoProvider: Datos descifrados exitosamente")
-
             Result.success(plaintext)
 
         } catch (e: javax.crypto.AEADBadTagException) {
             // GCM detecta que los datos fueron manipulados
-            println("🚨 CryptoProvider: Datos manipulados o IV incorrecto")
             Result.failure(
                 CryptoException.DecryptionFailed(
                     "Datos cifrados manipulados o IV incorrecto",
@@ -139,7 +132,6 @@ internal class CryptoProvider(
                 )
             )
         } catch (e: Exception) {
-            println("❌ CryptoProvider: Error en descifrado: ${e.message}")
             Result.failure(
                 CryptoException.DecryptionFailed(
                     "Error al descifrar datos: ${e.message}",

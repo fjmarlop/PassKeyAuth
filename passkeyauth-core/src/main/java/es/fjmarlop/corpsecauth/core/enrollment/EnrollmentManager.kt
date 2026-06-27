@@ -38,7 +38,6 @@ internal class EnrollmentManager private constructor(
             emit(EnrollmentState.Idle)
 
             // PASO 1: Validar credenciales (login + obtener ID token, atomico)
-            println("🔐 EnrollmentManager: Paso 1 - Validando credenciales")
             emit(EnrollmentState.ValidatingCredentials(email))
 
             val session = authBackend.authenticate(
@@ -62,7 +61,6 @@ internal class EnrollmentManager private constructor(
             */
 
             // PASO 3: Generar clave en KeyStore
-            println("🔐 EnrollmentManager: Paso 3 - Generando clave en KeyStore")
             emit(EnrollmentState.GeneratingCryptoKey)
 
             keyStoreManager.generateKey().getOrElse { error ->
@@ -72,7 +70,6 @@ internal class EnrollmentManager private constructor(
             }
 
             // PASO 4: Autenticacion biometrica
-            println("🔐 EnrollmentManager: Paso 4 - Esperando autenticacion biometrica")
             emit(EnrollmentState.AwaitingBiometric(BiometricConfig.Default))
 
             val authenticatedCipher = biometricAuthenticator.authenticateForEncryption(
@@ -91,7 +88,6 @@ internal class EnrollmentManager private constructor(
             // cerrar la sesion Firebase del paso 1. Sin este try/catch, la excepcion
             // caia al catch outer que solo emitia Error sin rollback — violacion de la
             // garantia "todo o nada" del enrollment transaccional.
-            println("🔐 EnrollmentManager: Paso 5 - Cifrando token de sesion")
 
             val encryptedBase64 = try {
                 val token = session.idToken
@@ -105,7 +101,6 @@ internal class EnrollmentManager private constructor(
                 // Disponible desde API 26 = nuestro minSdk. Ver ADR-011.
                 java.util.Base64.getEncoder().encodeToString(iv + ciphertext)
             } catch (e: Exception) {
-                println("❌ EnrollmentManager: Paso 5 fallo - Cifrado: ${e.message}")
                 keyStoreManager.deleteKey()
                 authBackend.signOut()
                 emit(
@@ -120,7 +115,6 @@ internal class EnrollmentManager private constructor(
             }
 
             // PASO 6: Vincular dispositivo en registry remoto
-            println("🔐 EnrollmentManager: Paso 6 - Vinculando dispositivo")
             emit(EnrollmentState.BindingDevice)
 
             val deviceId = deviceRegistry.bindDevice(session.user.uid).getOrElse { error ->
@@ -132,7 +126,6 @@ internal class EnrollmentManager private constructor(
             }
 
             // PASO 7: Guardar en storage local cifrado
-            println("🔐 EnrollmentManager: Paso 7 - Guardando en storage local")
 
             secureStorage.saveEncryptedToken(encryptedBase64).getOrElse { error ->
                 keyStoreManager.deleteKey()
@@ -147,11 +140,9 @@ internal class EnrollmentManager private constructor(
             secureStorage.saveDeviceId(deviceId)
             secureStorage.saveLastActivityTimestamp(System.currentTimeMillis())
 
-            println("✅ EnrollmentManager: Enrollment completado exitosamente")
             emit(EnrollmentState.Success(session.user))
 
         } catch (e: Exception) {
-            println("❌ EnrollmentManager: Error inesperado: ${e.message}")
             emit(EnrollmentState.Error(wrapException(e)))
         }
     }
@@ -171,21 +162,18 @@ internal class EnrollmentManager private constructor(
             val isValid = hasToken && hasKey && userId != null
 
             if (!isValid) {
-                println("⚠️ EnrollmentManager: Enrollment incompleto - limpiando datos")
                 keyStoreManager.deleteKey()
                 secureStorage.clear()
             }
 
             Result.success(isValid)
         } catch (e: Exception) {
-            println("❌ EnrollmentManager: Error validando enrollment: ${e.message}")
             Result.failure(e)
         }
     }
 
     suspend fun unenrollDevice(): Result<Unit> {
         return try {
-            println("🗑️ EnrollmentManager: Eliminando enrollment")
             val userId = secureStorage.loadUserId().getOrNull()
 
             if (userId != null) {
@@ -196,10 +184,8 @@ internal class EnrollmentManager private constructor(
             secureStorage.clear()
             authBackend.signOut()
 
-            println("✅ EnrollmentManager: Enrollment eliminado")
             Result.success(Unit)
         } catch (e: Exception) {
-            println("❌ EnrollmentManager: Error eliminando enrollment: ${e.message}")
             Result.failure(e)
         }
     }

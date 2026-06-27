@@ -46,11 +46,9 @@ internal class AndroidKeyStoreManager(
         try {
             // MODO 1: StrongBox OBLIGATORIO
             if (requireStrongBox) {
-                println("🔐 KeyStoreManager: Modo StrongBox OBLIGATORIO")
                 return@withContext generateKeyWithStrongBox()
                     .onSuccess { key -> logAttestation(key, expectedStrongBox = true) }
                     .onFailure {
-                        println("❌ KeyStoreManager: StrongBox no disponible pero es obligatorio")
                         return@withContext Result.failure(
                             CryptoException.StrongBoxNotAvailable(
                                 "StrongBox requerido pero no disponible en este dispositivo"
@@ -60,26 +58,20 @@ internal class AndroidKeyStoreManager(
             }
 
             // MODO 2: StrongBox OPCIONAL con fallback a TEE
-            println("🔐 KeyStoreManager: Intentando StrongBox con fallback a TEE...")
-
             val strongBoxResult = generateKeyWithStrongBox()
             if (strongBoxResult.isSuccess) {
-                println("✅ KeyStoreManager: Clave generada con StrongBox")
                 return@withContext strongBoxResult.also { r ->
                     r.onSuccess { key -> logAttestation(key, expectedStrongBox = true) }
                 }
             }
 
-            println("⚠️ KeyStoreManager: StrongBox no disponible, usando TEE como fallback")
             val teeResult = generateKeyWithTEE()
             if (teeResult.isSuccess) {
-                println("✅ KeyStoreManager: Clave generada con TEE")
                 return@withContext teeResult.also { r ->
                     r.onSuccess { key -> logAttestation(key, expectedStrongBox = false) }
                 }
             }
 
-            println("❌ KeyStoreManager: Fallo tanto StrongBox como TEE")
             Result.failure(
                 CryptoException.KeyGenerationFailed(
                     "No se pudo generar clave ni con StrongBox ni con TEE"
@@ -87,7 +79,6 @@ internal class AndroidKeyStoreManager(
             )
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: Error inesperado generando clave: ${e.message}")
             Result.failure(
                 CryptoException.KeyGenerationFailed("Error generando clave: ${e.message}", e)
             )
@@ -118,7 +109,6 @@ internal class AndroidKeyStoreManager(
                 )
             }
 
-            println("🔐 KeyStoreManager: Generando clave con StrongBox...")
 
             val keyGenerator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES,
@@ -147,7 +137,6 @@ internal class AndroidKeyStoreManager(
             Result.success(key)
 
         } catch (e: Exception) {
-            println("⚠️ KeyStoreManager: StrongBox fallo: ${e.message}")
             Result.failure(e)
         }
     }
@@ -167,7 +156,6 @@ internal class AndroidKeyStoreManager(
     @Suppress("DEPRECATION")
     private fun generateKeyWithTEE(): Result<SecretKey> {
         return try {
-            println("🔐 KeyStoreManager: Generando clave con TEE...")
 
             val keyGenerator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES,
@@ -196,7 +184,6 @@ internal class AndroidKeyStoreManager(
             Result.success(key)
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: TEE fallo: ${e.message}")
             Result.failure(
                 CryptoException.KeyGenerationFailed("Error generando clave con TEE: ${e.message}", e)
             )
@@ -213,7 +200,6 @@ internal class AndroidKeyStoreManager(
             Result.success(key)
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: Error obteniendo clave: ${e.message}")
             Result.failure(
                 CryptoException.KeyNotFound(KEY_ALIAS)
             )
@@ -240,7 +226,6 @@ internal class AndroidKeyStoreManager(
             Result.success(cipher)
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: Error creando cipher de cifrado: ${e.message}")
             Result.failure(
                 CryptoException.EncryptionFailed("Error creando cipher: ${e.message}", e)
             )
@@ -260,7 +245,6 @@ internal class AndroidKeyStoreManager(
             Result.success(cipher)
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: Error creando cipher de descifrado: ${e.message}")
             Result.failure(
                 CryptoException.DecryptionFailed("Error creando cipher: ${e.message}", e)
             )
@@ -271,12 +255,10 @@ internal class AndroidKeyStoreManager(
         try {
             if (hasKey()) {
                 keyStore.deleteEntry(KEY_ALIAS)
-                println("🗑️ KeyStoreManager: Clave eliminada")
             }
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("❌ KeyStoreManager: Error eliminando clave: ${e.message}")
             Result.failure(e)
         }
     }
@@ -289,19 +271,7 @@ internal class AndroidKeyStoreManager(
     // Si se esperaba StrongBox pero la attestation dice SOFTWARE, loggea error crítico
     // (la garantía ya la dio generateKeyWithStrongBox; esto es defensa en profundidad).
     private fun logAttestation(key: javax.crypto.SecretKey, expectedStrongBox: Boolean) {
-        val level = attestationVerifier.checkSecurityLevel(key)
-        when {
-            level == HardwareSecurityLevel.UNKNOWN ->
-                println("⚠️ KeyAttestation: no disponible en este entorno (emulador/test)")
-            level == HardwareSecurityLevel.SOFTWARE ->
-                println("❌ KeyAttestation: clave SOFTWARE-backed — garantía hardware no verificada")
-            level == HardwareSecurityLevel.STRONGBOX ->
-                println("✅ KeyAttestation: clave en StrongBox (chip dedicado)")
-            level == HardwareSecurityLevel.TRUSTED_ENVIRONMENT && expectedStrongBox ->
-                println("⚠️ KeyAttestation: clave en TEE, pero se esperaba StrongBox")
-            else ->
-                println("✅ KeyAttestation: clave en TEE (hardware-backed)")
-        }
+        attestationVerifier.checkSecurityLevel(key)
     }
 
     companion object {

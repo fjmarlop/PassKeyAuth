@@ -65,11 +65,9 @@ internal class AndroidBiometricAuthenticator(
 
         return when (mapCanAuthenticateToCapability(canAuthenticate)) {
             PasskeyCapability.Ready -> {
-                println("✅ BiometricAuthenticator: Biometria STRONG disponible")
                 Result.success(Unit)
             }
             PasskeyCapability.NoHardware -> {
-                println("❌ BiometricAuthenticator: Sin hardware biometrico")
                 Result.failure(
                     BiometricException.HardwareNotAvailable(
                         "Este dispositivo no tiene sensor biometrico"
@@ -77,7 +75,6 @@ internal class AndroidBiometricAuthenticator(
                 )
             }
             PasskeyCapability.TemporarilyUnavailable -> {
-                println("⚠️ BiometricAuthenticator: Hardware no disponible")
                 Result.failure(
                     BiometricException.HardwareUnavailable(
                         "El sensor biometrico no esta disponible temporalmente"
@@ -85,7 +82,6 @@ internal class AndroidBiometricAuthenticator(
                 )
             }
             PasskeyCapability.NotEnrolled -> {
-                println("⚠️ BiometricAuthenticator: Sin huellas registradas")
                 Result.failure(
                     BiometricException.NoneEnrolled(
                         "No hay huellas digitales registradas en el dispositivo"
@@ -93,7 +89,6 @@ internal class AndroidBiometricAuthenticator(
                 )
             }
             PasskeyCapability.SecurityUpdateRequired -> {
-                println("⚠️ BiometricAuthenticator: Actualizacion de seguridad requerida")
                 Result.failure(
                     BiometricException.SecurityUpdateRequired(
                         "Se requiere actualizacion de seguridad del sistema"
@@ -106,14 +101,11 @@ internal class AndroidBiometricAuthenticator(
     override suspend fun authenticateForEncryption(
         config: BiometricConfig
     ): Result<Cipher> {
-        println("🔐 BiometricAuthenticator: Iniciando autenticacion para cifrado")
-
         validateBiometricCapabilities().onFailure { error ->
             return Result.failure(error)
         }
 
         val cipher = keyStoreManager.getEncryptCipher().getOrElse { error ->
-            println("❌ BiometricAuthenticator: Error obteniendo cipher: ${error.message}")
             return Result.failure(
                 BiometricException.CryptoError(
                     "Error preparando cifrado: ${error.message}",
@@ -129,14 +121,11 @@ internal class AndroidBiometricAuthenticator(
         iv: ByteArray,
         config: BiometricConfig
     ): Result<Cipher> {
-        println("🔓 BiometricAuthenticator: Iniciando autenticacion para descifrado")
-
         validateBiometricCapabilities().onFailure { error ->
             return Result.failure(error)
         }
 
         val cipher = keyStoreManager.getDecryptCipher(iv).getOrElse { error ->
-            println("❌ BiometricAuthenticator: Error obteniendo cipher: ${error.message}")
             return Result.failure(
                 BiometricException.CryptoError(
                     "Error preparando descifrado: ${error.message}",
@@ -175,13 +164,10 @@ internal class AndroidBiometricAuthenticator(
 
         val authCallback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                println("✅ BiometricAuthenticator: Autenticacion exitosa")
-
                 val authenticatedCipher = result.cryptoObject?.cipher
                 if (authenticatedCipher != null) {
                     continuation.resume(Result.success(authenticatedCipher))
                 } else {
-                    println("🚨 BiometricAuthenticator: Cipher null despues de autenticacion")
                     continuation.resume(
                         Result.failure(
                             BiometricException.CryptoError("Cipher no disponible despues de autenticacion")
@@ -191,8 +177,6 @@ internal class AndroidBiometricAuthenticator(
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                println("❌ BiometricAuthenticator: Error de autenticacion ($errorCode): $errString")
-
                 val exception = when (errorCode) {
                     BiometricPrompt.ERROR_HW_UNAVAILABLE,
                     BiometricPrompt.ERROR_HW_NOT_PRESENT -> {
@@ -230,14 +214,12 @@ internal class AndroidBiometricAuthenticator(
 
             override fun onAuthenticationFailed() {
                 // No resumir aqui - el usuario puede reintentar
-                println("⚠️ BiometricAuthenticator: Intento fallido (usuario puede reintentar)")
             }
         }
 
         val biometricPrompt = BiometricPrompt(activity, executor, authCallback)
 
         continuation.invokeOnCancellation {
-            println("🚫 BiometricAuthenticator: Autenticacion cancelada")
             biometricPrompt.cancelAuthentication()
         }
 
@@ -245,7 +227,6 @@ internal class AndroidBiometricAuthenticator(
             val cryptoObject = BiometricPrompt.CryptoObject(cipher)
             biometricPrompt.authenticate(promptInfo, cryptoObject)
         } catch (e: Exception) {
-            println("❌ BiometricAuthenticator: Error mostrando prompt: ${e.message}")
             continuation.resume(
                 Result.failure(
                     BiometricException.CryptoError(
