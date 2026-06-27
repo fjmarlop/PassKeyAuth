@@ -19,6 +19,7 @@ import es.fjmarlop.corpsecauth.core.storage.SecureStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +31,9 @@ object PasskeyAuth {
     @Volatile private var isInitialized = false
     private var appContext: Context? = null
     private var config: PasskeyAuthConfig? = null
-    
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    
+
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     // Composicion root: una sola instancia Firebase sirve ambas capabilities
     // (autenticacion y gestion de password). Se expone como dos getters tipados
     // a las interfaces correspondientes (ver ADR-010 Path C).
@@ -82,7 +83,7 @@ object PasskeyAuth {
     private var justAuthenticated: Boolean = false
 
     private val _authState = MutableStateFlow<AuthResult>(AuthResult.Loading)
-    
+
     val authState: StateFlow<AuthResult> = _authState.asStateFlow()
 
     /**
@@ -108,8 +109,6 @@ object PasskeyAuth {
                 )
             }
 
-            println("ðŸ” PasskeyAuth: Inicializando SDK...")
-
             // Comprobación de integridad del entorno antes de operar (ADR-015).
             // Falla la inicialización si la política es Block y se detecta un
             // entorno comprometido (root, hooking, emulador o depurador en release).
@@ -119,7 +118,6 @@ object PasskeyAuth {
                 emulatorPolicy = config.emulatorPolicy,
                 isDebugBuild = es.fjmarlop.corpsecauth.core.BuildConfig.DEBUG,
             ).getOrElse { integrityError ->
-                println("PasskeyAuth: Integridad comprometida: ${integrityError.message}")
                 return Result.failure(integrityError)
             }
 
@@ -132,13 +130,10 @@ object PasskeyAuth {
 
             isInitialized = true
             lastActivityTimestamp = System.currentTimeMillis()
-            
-            println("âœ… PasskeyAuth: Inicializado exitosamente")
-            
+
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error en inicializacion: ${e.message}")
             Result.failure(e)
         }
     }
@@ -172,8 +167,6 @@ object PasskeyAuth {
         requireInitialized()
 
         return try {
-            println("ðŸ” PasskeyAuth: Iniciando autenticacion")
-
             if (!isDeviceEnrolled()) {
                 return Result.failure(
                     IllegalStateException("Dispositivo no enrollado. Llama a enrollDevice() primero.")
@@ -217,8 +210,8 @@ object PasskeyAuth {
 
             val currentUser = authBackend.getCurrentUser()
                 ?: return Result.failure(
-                    es.fjmarlop.corpsecauth.core.errors.FirebaseException.UserNotFound(
-                        "Usuario no encontrado en Firebase"
+                    es.fjmarlop.corpsecauth.core.errors.DeviceException.NotEnrolled(
+                        "No hay sesion de usuario activa — dispositivo no enrollado o sesion expirada"
                     )
                 )
 
@@ -227,7 +220,6 @@ object PasskeyAuth {
             }
 
             if (!isDeviceValid) {
-                println("ðŸš¨ PasskeyAuth: Dispositivo revocado remotamente")
                 _authState.value = AuthResult.Unauthenticated
                 logout()
                 return Result.failure(
@@ -240,15 +232,13 @@ object PasskeyAuth {
             secureStorage.saveLastActivityTimestamp(System.currentTimeMillis())
 
             _authState.value = AuthResult.Authenticated(currentUser)
-            println("âœ… PasskeyAuth: Autenticacion exitosa")
-            
+
             justAuthenticated = true
             lastActivityTimestamp = System.currentTimeMillis()
 
             Result.success(currentUser)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error en autenticacion: ${e.message}")
             val authException = wrapToPasskeyAuthException(e)
             _authState.value = AuthResult.Error(authException)
             Result.failure(e)
@@ -256,17 +246,13 @@ object PasskeyAuth {
     }
 
     fun logout() {
-        println("ðŸšª PasskeyAuth: Cerrando sesion")
-        
         scope.launch {
             try {
                 secureStorage.clearToken()
                 authBackend.signOut()
                 _authState.value = AuthResult.Unauthenticated
-                
-                println("âœ… PasskeyAuth: Sesion cerrada")
             } catch (e: Exception) {
-                println("âŒ PasskeyAuth: Error en logout: ${e.message}")
+                // no-op
             }
         }
     }
@@ -275,14 +261,10 @@ object PasskeyAuth {
         requireInitialized()
 
         return try {
-            println("ðŸ—‘ï¸ PasskeyAuth: Eliminando enrollment")
-
             val userId = secureStorage.loadUserId().getOrNull()
 
             if (userId != null) {
-                deviceRegistry.revokeDevice(userId).onFailure { error ->
-                    println("âš ï¸ PasskeyAuth: Error revocando dispositivo: ${error.message}")
-                }
+                deviceRegistry.revokeDevice(userId).onFailure { /* no-op */ }
             }
 
             keyStoreManager.deleteKey()
@@ -291,11 +273,9 @@ object PasskeyAuth {
 
             _authState.value = AuthResult.Unauthenticated
 
-            println("âœ… PasskeyAuth: Enrollment eliminado")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error eliminando enrollment: ${e.message}")
             Result.failure(e)
         }
     }
@@ -319,11 +299,9 @@ object PasskeyAuth {
         return authState.value is AuthResult.Authenticated
     }
 
-    fun refreshAuthState() {
+    internal fun refreshAuthState() {
         scope.launch {
             try {
-                println("ðŸ”„ PasskeyAuth: Refrescando estado de autenticacion")
-
                 if (!isDeviceEnrolled()) {
                     _authState.value = AuthResult.Unauthenticated
                     return@launch
@@ -339,52 +317,42 @@ object PasskeyAuth {
                     .getOrElse { false }
 
                 if (!isDeviceValid) {
-                    println("ðŸš¨ PasskeyAuth: Dispositivo invalidado")
                     _authState.value = AuthResult.Unauthenticated
                     logout()
                     return@launch
                 }
 
                 _authState.value = AuthResult.Authenticated(currentUser)
-                println("âœ… PasskeyAuth: Estado actualizado - Authenticated")
 
             } catch (e: Exception) {
-                println("âŒ PasskeyAuth: Error refrescando estado: ${e.message}")
                 val authException = wrapToPasskeyAuthException(e)
                 _authState.value = AuthResult.Error(authException)
             }
         }
     }
 
-    
+
 
     fun onAppBackground() {
         lastActivityTimestamp = System.currentTimeMillis()
         justAuthenticated = false
-        println("🕐 PasskeyAuth: App a background (timestamp: $lastActivityTimestamp)")
     }
 
     fun onAppForeground() {
         if (justAuthenticated) {
-            println("âœ… PasskeyAuth: Recien autenticado, ignorando verificacion de timeout")
             justAuthenticated = false
             lastActivityTimestamp = System.currentTimeMillis()
             return
         }
 
-        val cfg = config ?: run {
-            println("âš ï¸ PasskeyAuth: Config no inicializado")
-            return
-        }
+        val cfg = config ?: return
 
         if (cfg.sessionTimeoutMinutes == 0) {
-            println("ðŸ”’ PasskeyAuth: Timeout = 0, invalidando sesion")
             invalidateSession()
             return
         }
 
         if (cfg.sessionTimeoutMinutes < 0) {
-            println("â³ PasskeyAuth: Timeout deshabilitado (testing mode)")
             return
         }
 
@@ -393,17 +361,11 @@ object PasskeyAuth {
         val timeoutMs = cfg.sessionTimeoutMinutes * 60 * 1000L
 
         if (elapsedMs > timeoutMs) {
-            val elapsedMin = elapsedMs / 60000
-            println("ðŸ”’ PasskeyAuth: Timeout excedido (${elapsedMin}min > ${cfg.sessionTimeoutMinutes}min), invalidando sesion")
             invalidateSession()
-        } else {
-            val elapsedMin = elapsedMs / 60000
-            println("âœ… PasskeyAuth: Dentro de timeout (${elapsedMin}min <= ${cfg.sessionTimeoutMinutes}min), manteniendo sesion")
         }
     }
 
-    fun invalidateSession() {
-        println("ðŸ”’ PasskeyAuth: Invalidando sesion (mantiene enrollment)")
+    internal fun invalidateSession() {
         _authState.value = AuthResult.Unauthenticated
     }
 
@@ -441,6 +403,8 @@ object PasskeyAuth {
     }
 
     internal fun reset() {
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         isInitialized = false
         appContext = null
         config = null
