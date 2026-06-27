@@ -215,7 +215,8 @@ object PasskeyAuth {
      * @param activity Activity requerida para mostrar el prompt biométrico.
      * @return [Result.success] con [es.fjmarlop.corpsecauth.core.models.AuthUser] si la autenticación fue correcta,
      *         [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.DeviceException.Revoked] si el dispositivo fue revocado,
-     *         o [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.BiometricException] si la biometría falló.
+     *         [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.BiometricException] si la biometría falló,
+     *         o [Result.failure] con [IllegalStateException] si el dispositivo no está enrollado.
      * @throws IllegalStateException si el SDK no está inicializado.
      */
     suspend fun authenticate(activity: FragmentActivity): Result<AuthUser> {
@@ -306,6 +307,9 @@ object PasskeyAuth {
      * Limpia el token local y cierra la sesión en el backend. El dispositivo
      * sigue vinculado — el usuario puede volver a autenticarse con [authenticate].
      * Para eliminar el enrollment completamente, usa [unenrollDevice].
+     *
+     * La operación es asíncrona internamente (fire-and-forget). Para garantizar que el
+     * signOut ha completado, suscríbete a [authState] y espera [es.fjmarlop.corpsecauth.core.models.AuthResult.Unauthenticated].
      */
     fun logout() {
         scope.launch {
@@ -327,7 +331,8 @@ object PasskeyAuth {
      * Después de esta llamada, el usuario deberá hacer [enrollDevice] de nuevo.
      *
      * @return [Result.success] si el unenrollment fue correcto.
-     *         [Result.failure] si hubo un error irrecuperable (el estado local se limpia igualmente).
+     *         [Result.failure] con cualquier [Exception] envuelta si hubo un error irrecuperable
+     *         (el estado local —clave, token, userId— se limpia igualmente).
      * @throws IllegalStateException si el SDK no está inicializado.
      */
     suspend fun unenrollDevice(): Result<Unit> {
