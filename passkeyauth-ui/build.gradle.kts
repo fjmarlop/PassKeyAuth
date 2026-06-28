@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -82,9 +84,23 @@ dependencies {
 // Deploy a Central Portal (requiere credenciales + clave GPG, ver DEVELOPMENT.md):
 //   .\gradlew.bat publishAndReleaseToMavenCentral
 // =====================================================================
+// Javadoc JAR vacío — mismo workaround que passkeyauth-core.
+// javaDocReleaseGeneration falla con "PermittedSubclasses requires ASM9" en sealed classes.
+val javadocJar = tasks.register<Jar>("emptyJavadocJar") {
+    archiveClassifier.set("javadoc")
+}
+
 mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
+
+    configure(
+        AndroidSingleVariantLibrary(
+            variant = "release",
+            sourcesJar = true,
+            publishJavadocJar = false
+        )
+    )
 
     coordinates("io.github.fjmarlop", "passkeyauth-ui", libs.versions.passkeyauth.get())
 
@@ -115,5 +131,11 @@ mavenPublishing {
             developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
             url.set("https://github.com/fjmarlop/PassKeyAuth")
         }
+    }
+}
+
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        artifact(javadocJar)
     }
 }
