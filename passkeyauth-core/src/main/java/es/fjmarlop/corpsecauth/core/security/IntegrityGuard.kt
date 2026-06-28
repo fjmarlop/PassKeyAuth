@@ -31,7 +31,7 @@ internal object IntegrityGuard {
         isHooked: Boolean,
         isDebuggerAttached: Boolean,
         isDebugBuild: Boolean,
-        logger: (String) -> Unit = ::println,
+        logger: (String) -> Unit = {},
     ): Result<Unit> {
         // Anti-debug: invariante en release (no configurable). En debug se ignora.
         if (!isDebugBuild && isDebuggerAttached) {

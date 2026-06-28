@@ -19,6 +19,7 @@ import es.fjmarlop.corpsecauth.core.storage.SecureStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +31,9 @@ object PasskeyAuth {
     @Volatile private var isInitialized = false
     private var appContext: Context? = null
     private var config: PasskeyAuthConfig? = null
-    
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    
+
+    @Volatile private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     // Composicion root: una sola instancia Firebase sirve ambas capabilities
     // (autenticacion y gestion de password). Se expone como dos getters tipados
     // a las interfaces correspondientes (ver ADR-010 Path C).
@@ -82,12 +83,18 @@ object PasskeyAuth {
     private var justAuthenticated: Boolean = false
 
     private val _authState = MutableStateFlow<AuthResult>(AuthResult.Loading)
-    
+
     val authState: StateFlow<AuthResult> = _authState.asStateFlow()
 
     /**
-     * Consulta no-lanzante del estado de capacidad biométrica.
-     * La UI dirige estados leyendo esto, sin capturar excepciones. Ver ADR-013.
+     * Consulta no-lanzante del estado de capacidad biométrica del dispositivo.
+     *
+     * Diseñado para ser llamado desde la UI antes de mostrar CTAs de autenticación.
+     * No lanza excepciones — devuelve [PasskeyCapability] que la UI puede mapear a estado.
+     *
+     * @param context Contexto de la aplicación.
+     * @return Estado de capacidad biométrica actual.
+     * @see PasskeyCapability
      */
     fun checkCapability(context: Context): PasskeyCapability {
         val code = BiometricManager.from(context)
@@ -95,6 +102,24 @@ object PasskeyAuth {
         return mapCanAuthenticateToCapability(code)
     }
 
+    /**
+     * Inicializa el SDK. Debe llamarse una sola vez, típicamente en [Application.onCreate].
+     *
+     * Ejecuta la comprobación de integridad del entorno según la [PasskeyAuthConfig] proporcionada.
+     * Si la política es [RootPolicy.Block] y el dispositivo está rooteado, devuelve
+     * [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.IntegrityException.RootDetected].
+     *
+     * Firebase se usa como backend por defecto. Para inyectar un backend alternativo
+     * (Keycloak, REST propio, etc.), pasa instancias de [AuthBackend] y/o [DeviceRegistry].
+     *
+     * @param context Contexto de la aplicación.
+     * @param config Configuración del SDK. Por defecto [PasskeyAuthConfig.Default].
+     * @param authBackend Backend de autenticación alternativo. `null` usa Firebase.
+     * @param deviceRegistry Registry de dispositivos alternativo. `null` usa Firestore.
+     * @return [Result.success] si la inicialización fue correcta,
+     *         [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.IntegrityException] si el entorno está comprometido,
+     *         o [Result.failure] con [IllegalStateException] si ya estaba inicializado.
+     */
     suspend fun initialize(
         context: Context,
         config: PasskeyAuthConfig = PasskeyAuthConfig.Default,
@@ -108,8 +133,6 @@ object PasskeyAuth {
                 )
             }
 
-            println("ðŸ” PasskeyAuth: Inicializando SDK...")
-
             // Comprobación de integridad del entorno antes de operar (ADR-015).
             // Falla la inicialización si la política es Block y se detecta un
             // entorno comprometido (root, hooking, emulador o depurador en release).
@@ -119,7 +142,6 @@ object PasskeyAuth {
                 emulatorPolicy = config.emulatorPolicy,
                 isDebugBuild = es.fjmarlop.corpsecauth.core.BuildConfig.DEBUG,
             ).getOrElse { integrityError ->
-                println("PasskeyAuth: Integridad comprometida: ${integrityError.message}")
                 return Result.failure(integrityError)
             }
 
@@ -132,17 +154,32 @@ object PasskeyAuth {
 
             isInitialized = true
             lastActivityTimestamp = System.currentTimeMillis()
-            
-            println("âœ… PasskeyAuth: Inicializado exitosamente")
-            
+
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error en inicializacion: ${e.message}")
             Result.failure(e)
         }
     }
 
+    /**
+     * Inicia el flujo de enrollment del dispositivo para el usuario dado.
+     *
+     * El enrollment es un proceso transaccional de 6 pasos (login, generación de clave,
+     * biometría, cifrado del token, binding de dispositivo, almacenamiento local).
+     * Si cualquier paso falla, los pasos anteriores se revierten automáticamente.
+     *
+     * Emite [es.fjmarlop.corpsecauth.core.models.EnrollmentState] a medida que el proceso avanza.
+     * El llamador debe observar el Flow y reaccionar a
+     * [es.fjmarlop.corpsecauth.core.models.EnrollmentState.Success] o
+     * [es.fjmarlop.corpsecauth.core.models.EnrollmentState.Error].
+     *
+     * @param activity Activity requerida para mostrar el prompt biométrico (debe ser [androidx.fragment.app.FragmentActivity]).
+     * @param email Email corporativo del usuario.
+     * @param temporaryPassword Contraseña temporal asignada por IT para el primer acceso.
+     * @return [kotlinx.coroutines.flow.Flow] de [es.fjmarlop.corpsecauth.core.models.EnrollmentState].
+     * @throws IllegalStateException si el SDK no está inicializado.
+     */
     fun enrollDevice(
         activity: FragmentActivity,
         email: String,
@@ -168,12 +205,24 @@ object PasskeyAuth {
         )
     }
 
+    /**
+     * Autentica al usuario mediante biometría hardware-backed (BIOMETRIC_STRONG).
+     *
+     * Requiere que el dispositivo esté previamente enrollado con [enrollDevice].
+     * Verifica que el dispositivo siga activo en el registry remoto antes de conceder
+     * acceso — si fue revocado por IT, devuelve [Result.failure].
+     *
+     * @param activity Activity requerida para mostrar el prompt biométrico.
+     * @return [Result.success] con [es.fjmarlop.corpsecauth.core.models.AuthUser] si la autenticación fue correcta,
+     *         [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.DeviceException.Revoked] si el dispositivo fue revocado,
+     *         [Result.failure] con [es.fjmarlop.corpsecauth.core.errors.BiometricException] si la biometría falló,
+     *         o [Result.failure] con [IllegalStateException] si el dispositivo no está enrollado.
+     * @throws IllegalStateException si el SDK no está inicializado.
+     */
     suspend fun authenticate(activity: FragmentActivity): Result<AuthUser> {
         requireInitialized()
 
         return try {
-            println("ðŸ” PasskeyAuth: Iniciando autenticacion")
-
             if (!isDeviceEnrolled()) {
                 return Result.failure(
                     IllegalStateException("Dispositivo no enrollado. Llama a enrollDevice() primero.")
@@ -218,7 +267,7 @@ object PasskeyAuth {
             val currentUser = authBackend.getCurrentUser()
                 ?: return Result.failure(
                     es.fjmarlop.corpsecauth.core.errors.FirebaseException.UserNotFound(
-                        "Usuario no encontrado en Firebase"
+                        "No hay sesion de usuario activa — la sesion expiro o fue revocada"
                     )
                 )
 
@@ -227,7 +276,6 @@ object PasskeyAuth {
             }
 
             if (!isDeviceValid) {
-                println("ðŸš¨ PasskeyAuth: Dispositivo revocado remotamente")
                 _authState.value = AuthResult.Unauthenticated
                 logout()
                 return Result.failure(
@@ -240,49 +288,61 @@ object PasskeyAuth {
             secureStorage.saveLastActivityTimestamp(System.currentTimeMillis())
 
             _authState.value = AuthResult.Authenticated(currentUser)
-            println("âœ… PasskeyAuth: Autenticacion exitosa")
-            
+
             justAuthenticated = true
             lastActivityTimestamp = System.currentTimeMillis()
 
             Result.success(currentUser)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error en autenticacion: ${e.message}")
             val authException = wrapToPasskeyAuthException(e)
             _authState.value = AuthResult.Error(authException)
             Result.failure(e)
         }
     }
 
+    /**
+     * Cierra la sesión del usuario sin eliminar el enrollment del dispositivo.
+     *
+     * Limpia el token local y cierra la sesión en el backend. El dispositivo
+     * sigue vinculado — el usuario puede volver a autenticarse con [authenticate].
+     * Para eliminar el enrollment completamente, usa [unenrollDevice].
+     *
+     * La operación es asíncrona internamente (fire-and-forget). Para garantizar que el
+     * signOut ha completado, suscríbete a [authState] y espera [es.fjmarlop.corpsecauth.core.models.AuthResult.Unauthenticated].
+     */
     fun logout() {
-        println("ðŸšª PasskeyAuth: Cerrando sesion")
-        
         scope.launch {
             try {
                 secureStorage.clearToken()
                 authBackend.signOut()
                 _authState.value = AuthResult.Unauthenticated
-                
-                println("âœ… PasskeyAuth: Sesion cerrada")
             } catch (e: Exception) {
-                println("âŒ PasskeyAuth: Error en logout: ${e.message}")
+                // no-op
             }
         }
     }
 
+    /**
+     * Elimina el enrollment del dispositivo de forma completa.
+     *
+     * Revoca el binding remoto en el registry, borra la clave del AndroidKeyStore,
+     * limpia el almacenamiento local cifrado y cierra la sesión del backend.
+     * Después de esta llamada, el usuario deberá hacer [enrollDevice] de nuevo.
+     *
+     * @return [Result.success] si el unenrollment fue correcto.
+     *         [Result.failure] con cualquier [Exception] envuelta si hubo un error irrecuperable
+     *         (el estado local —clave, token, userId— se limpia igualmente).
+     * @throws IllegalStateException si el SDK no está inicializado.
+     */
     suspend fun unenrollDevice(): Result<Unit> {
         requireInitialized()
 
         return try {
-            println("ðŸ—‘ï¸ PasskeyAuth: Eliminando enrollment")
-
             val userId = secureStorage.loadUserId().getOrNull()
 
             if (userId != null) {
-                deviceRegistry.revokeDevice(userId).onFailure { error ->
-                    println("âš ï¸ PasskeyAuth: Error revocando dispositivo: ${error.message}")
-                }
+                deviceRegistry.revokeDevice(userId).onFailure { /* no-op */ }
             }
 
             keyStoreManager.deleteKey()
@@ -291,15 +351,21 @@ object PasskeyAuth {
 
             _authState.value = AuthResult.Unauthenticated
 
-            println("âœ… PasskeyAuth: Enrollment eliminado")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            println("âŒ PasskeyAuth: Error eliminando enrollment: ${e.message}")
             Result.failure(e)
         }
     }
 
+    /**
+     * Comprueba si el dispositivo tiene un enrollment válido y completo.
+     *
+     * Verifica la presencia de los tres componentes: token cifrado en storage,
+     * clave en AndroidKeyStore, e identificador de usuario.
+     *
+     * @return `true` si el dispositivo está enrollado, `false` en caso contrario.
+     */
     suspend fun isDeviceEnrolled(): Boolean {
         if (!isInitialized) return false
 
@@ -310,20 +376,36 @@ object PasskeyAuth {
         return hasToken && hasKey && userId != null
     }
 
+    /**
+     * Devuelve el usuario actualmente autenticado según el backend, o `null` si no hay sesión.
+     *
+     * Esta llamada es síncrona y usa la caché del backend (Firebase Auth en la implementación
+     * por defecto). Para backends OIDC sin caché, puede devolver `null` aunque haya una sesión
+     * válida — en ese caso implementa un adaptador que mantenga el usuario en memoria.
+     *
+     * @return [es.fjmarlop.corpsecauth.core.models.AuthUser] si hay sesión activa,
+     *         `null` si no hay usuario autenticado o el SDK no está inicializado.
+     */
     fun getCurrentUser(): AuthUser? {
         if (!isInitialized) return null
         return authBackend.getCurrentUser()
     }
 
+    /**
+     * Indica si el estado de autenticación actual es [es.fjmarlop.corpsecauth.core.models.AuthResult.Authenticated].
+     *
+     * Equivale a `authState.value is AuthResult.Authenticated`.
+     * Para observar cambios reactivos, suscríbete a [authState] en su lugar.
+     *
+     * @return `true` si el usuario está autenticado en este momento.
+     */
     fun isAuthenticated(): Boolean {
         return authState.value is AuthResult.Authenticated
     }
 
-    fun refreshAuthState() {
+    internal fun refreshAuthState() {
         scope.launch {
             try {
-                println("ðŸ”„ PasskeyAuth: Refrescando estado de autenticacion")
-
                 if (!isDeviceEnrolled()) {
                     _authState.value = AuthResult.Unauthenticated
                     return@launch
@@ -339,52 +421,60 @@ object PasskeyAuth {
                     .getOrElse { false }
 
                 if (!isDeviceValid) {
-                    println("ðŸš¨ PasskeyAuth: Dispositivo invalidado")
                     _authState.value = AuthResult.Unauthenticated
                     logout()
                     return@launch
                 }
 
                 _authState.value = AuthResult.Authenticated(currentUser)
-                println("âœ… PasskeyAuth: Estado actualizado - Authenticated")
 
             } catch (e: Exception) {
-                println("âŒ PasskeyAuth: Error refrescando estado: ${e.message}")
                 val authException = wrapToPasskeyAuthException(e)
                 _authState.value = AuthResult.Error(authException)
             }
         }
     }
 
-    
 
+
+    /**
+     * Notifica al SDK que la app pasó a segundo plano.
+     *
+     * Registra el timestamp para el cálculo de timeout de sesión.
+     * Debe llamarse desde el Activity raíz o Application en `onStop()`.
+     *
+     * @see PasskeyAuthConfig.sessionTimeoutMinutes
+     * @see onAppForeground
+     */
     fun onAppBackground() {
         lastActivityTimestamp = System.currentTimeMillis()
         justAuthenticated = false
-        println("🕐 PasskeyAuth: App a background (timestamp: $lastActivityTimestamp)")
     }
 
+    /**
+     * Notifica al SDK que la app volvió a primer plano.
+     *
+     * Evalúa si el tiempo transcurrido desde [onAppBackground] supera
+     * [PasskeyAuthConfig.sessionTimeoutMinutes]. Si es así, invalida la sesión
+     * y emite [es.fjmarlop.corpsecauth.core.models.AuthResult.Unauthenticated] en [authState].
+     *
+     * @see onAppBackground
+     */
     fun onAppForeground() {
         if (justAuthenticated) {
-            println("âœ… PasskeyAuth: Recien autenticado, ignorando verificacion de timeout")
             justAuthenticated = false
             lastActivityTimestamp = System.currentTimeMillis()
             return
         }
 
-        val cfg = config ?: run {
-            println("âš ï¸ PasskeyAuth: Config no inicializado")
-            return
-        }
+        val cfg = config ?: return
 
         if (cfg.sessionTimeoutMinutes == 0) {
-            println("ðŸ”’ PasskeyAuth: Timeout = 0, invalidando sesion")
             invalidateSession()
             return
         }
 
         if (cfg.sessionTimeoutMinutes < 0) {
-            println("â³ PasskeyAuth: Timeout deshabilitado (testing mode)")
             return
         }
 
@@ -393,17 +483,11 @@ object PasskeyAuth {
         val timeoutMs = cfg.sessionTimeoutMinutes * 60 * 1000L
 
         if (elapsedMs > timeoutMs) {
-            val elapsedMin = elapsedMs / 60000
-            println("ðŸ”’ PasskeyAuth: Timeout excedido (${elapsedMin}min > ${cfg.sessionTimeoutMinutes}min), invalidando sesion")
             invalidateSession()
-        } else {
-            val elapsedMin = elapsedMs / 60000
-            println("âœ… PasskeyAuth: Dentro de timeout (${elapsedMin}min <= ${cfg.sessionTimeoutMinutes}min), manteniendo sesion")
         }
     }
 
-    fun invalidateSession() {
-        println("ðŸ”’ PasskeyAuth: Invalidando sesion (mantiene enrollment)")
+    internal fun invalidateSession() {
         _authState.value = AuthResult.Unauthenticated
     }
 
@@ -441,6 +525,8 @@ object PasskeyAuth {
     }
 
     internal fun reset() {
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         isInitialized = false
         appContext = null
         config = null

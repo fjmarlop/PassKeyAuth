@@ -52,13 +52,10 @@ internal class FirebaseAuthBackend(
         email: String,
         password: String
     ): Result<AuthSession> = suspendCoroutine { continuation ->
-        println("🔐 FirebaseAuthBackend: Iniciando login con email/password")
-
         auth.signInWithEmailAndPassword(email, password)
             .addOnSuccessListener { authResult ->
                 val firebaseUser = authResult.user
                 if (firebaseUser != null) {
-                    println("✅ FirebaseAuthBackend: Login exitoso (uid: ${firebaseUser.uid})")
                     // Obtener ID token de forma atomica con el login
                     completeSessionWithToken(firebaseUser, continuation)
                 } else {
@@ -72,7 +69,6 @@ internal class FirebaseAuthBackend(
                 }
             }
             .addOnFailureListener { exception ->
-                println("❌ FirebaseAuthBackend: Error en login: ${exception.message}")
                 continuation.resume(Result.failure(mapAuthException(exception)))
             }
     }
@@ -110,7 +106,6 @@ internal class FirebaseAuthBackend(
                 }
             }
             .addOnFailureListener { exception ->
-                println("❌ FirebaseAuthBackend: Error obteniendo ID token: ${exception.message}")
                 continuation.resume(
                     Result.failure(
                         FirebaseException.AuthenticationFailed(
@@ -122,8 +117,6 @@ internal class FirebaseAuthBackend(
     }
 
     override suspend fun invalidateTemporaryPassword(): Result<Unit> = suspendCoroutine { continuation ->
-        println("🔐 FirebaseAuthBackend: Invalidando password temporal con random")
-
         val currentUser = auth.currentUser
         if (currentUser == null) {
             continuation.resume(
@@ -138,12 +131,9 @@ internal class FirebaseAuthBackend(
 
         currentUser.updatePassword(randomPassword)
             .addOnSuccessListener {
-                println("✅ FirebaseAuthBackend: Password temporal invalidada")
-                println("🔐 FirebaseAuthBackend: Usuario ahora es passwordless (solo biometria)")
                 continuation.resume(Result.success(Unit))
             }
             .addOnFailureListener { exception ->
-                println("❌ FirebaseAuthBackend: Error invalidando password: ${exception.message}")
                 continuation.resume(
                     Result.failure(
                         FirebaseException.PasswordChangeFailed(
@@ -159,7 +149,6 @@ internal class FirebaseAuthBackend(
     }
 
     override fun signOut() {
-        println("🚪 FirebaseAuthBackend: Cerrando sesion")
         auth.signOut()
     }
 

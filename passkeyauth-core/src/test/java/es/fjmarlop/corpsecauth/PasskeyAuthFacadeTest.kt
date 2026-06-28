@@ -346,4 +346,10 @@ internal class PasskeyAuthFacadeTest {
         coVerify(atLeast = 1) { firebaseAuthBackendMock.signOut() }
         assertThat(PasskeyAuth.authState.value).isEqualTo(AuthResult.Unauthenticated)
     }
+
+    @Test
+    fun `reset cancela el scope — estado vuelve a Loading`() {
+        PasskeyAuth.reset()
+        assertThat(PasskeyAuth.authState.value).isInstanceOf(AuthResult.Loading::class.java)
+    }
 }
