@@ -6,7 +6,7 @@ minSdk = "26"
 targetSdk = "35"
 
 # SDK publicado (coordenada Maven: io.github.fjmarlop:passkeyauth-*)
-passkeyauth = "0.4.1"
+passkeyauth = "1.0.0"
 mavenPublish = "0.37.0"
 
 # AndroidX

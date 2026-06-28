@@ -7,6 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.0.0] — 2026-06-28
+
+Primera release estable. Todos los contratos públicos del SDK se consideran estables a partir de esta versión.
+
+### Added
+- **Publicación en Maven Central** — `io.github.fjmarlop:passkeyauth-core:1.0.0` y `io.github.fjmarlop:passkeyauth-ui:1.0.0` disponibles públicamente.
+- **LICENSE Apache 2.0** — licencia explícita incluida en el repositorio y en los artefactos publicados.
+
+### Changed
+- **Enrollment paso 2 activado** — `invalidateTemporaryPassword()` se ejecuta ahora en producción tras la autenticación inicial. El dispositivo queda en modo verdaderamente passwordless una vez completado el enrollment (ADR-006).
+
+### Internal
+- Infraestructura de publicación: plugin `com.vanniktech.maven.publish` 0.37.0, coordenadas `io.github.fjmarlop`, firma GPG, POM completo.
+- Workaround javadoc AGP 9: `publishJavadocJar = false` + JAR vacío en ambos módulos hasta integrar Dokka standalone.
+
+---
+
 ## [0.4.1] — 2026-06-28
 
 Sprint de pulido previo a v1.0.0. Sin cambios de lógica de negocio — solo calidad de SDK de cara a publicación.

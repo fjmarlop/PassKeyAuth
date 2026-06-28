@@ -47,9 +47,8 @@ import androidx.lifecycle.LifecycleEventObserver
 fun CredentialsScreen(
     onContinue: (email: String, password: String) -> Unit,
 ) {
-    // Prefilled para demo/testing. En producción arrancar con cadenas vacías.
-    var email by remember { mutableStateOf("test@fjmarlop.es") }
-    var password by remember { mutableStateOf("12345678") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
     // SEGURIDAD (ADR-015, bloque E2): si el usuario copia el email o la contraseña
