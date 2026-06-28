@@ -2,12 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    `maven-publish`
+    alias(libs.plugins.vanniktech.maven.publish)
 }
-
-// Coordenada Maven del artefacto publicado: io.github.fjmarlop:passkeyauth-ui
-group = "io.github.fjmarlop"
-version = libs.versions.passkeyauth.get()
 
 android {
     namespace = "es.fjmarlop.corpsecauth.ui"
@@ -31,15 +27,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    // Publicación: una sola variante (release) con sources JAR.
-    // NOTA: sin withJavadocJar() de AGP (su Dokka interno falla con sealed classes —
-    // "PermittedSubclasses requires ASM9"). Javadoc JAR adjuntado manualmente abajo.
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
     }
 
     compileOptions {
@@ -86,60 +73,47 @@ dependencies {
 }
 
 // =====================================================================
-// Publicación Maven (POM para Maven Central)
+// Publicación Maven Central (plugin vanniktech)
 // =====================================================================
 //
-// Validación local:
+// Validación local (sin firma):
 //   .\gradlew.bat :passkeyauth-ui:publishToMavenLocal
-//   → artefacto en ~/.m2/repository/io/github/fjmarlop/passkeyauth-ui/
+//
+// Deploy a Central Portal (requiere credenciales + clave GPG, ver DEVELOPMENT.md):
+//   .\gradlew.bat publishAndReleaseToMavenCentral
 // =====================================================================
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
 
-// Javadoc JAR placeholder (AGP withJavadocJar() roto con sealed classes).
-val javadocJar = tasks.register<Jar>("javadocJar") {
-    archiveClassifier.set("javadoc")
-}
+    coordinates("io.github.fjmarlop", "passkeyauth-ui", libs.versions.passkeyauth.get())
 
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = "io.github.fjmarlop"
-            artifactId = "passkeyauth-ui"
-            version = project.version.toString()
+    pom {
+        name.set("PasskeyAuth UI")
+        description.set(
+            "Componentes Jetpack Compose para PasskeyAuth: pantallas de sign-in y " +
+                "enrollment, launcher híbrido y theming zero-config."
+        )
+        url.set("https://github.com/fjmarlop/PassKeyAuth")
+        inceptionYear.set("2026")
 
-            artifact(javadocJar)
-
-            afterEvaluate {
-                from(components["release"])
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
             }
-
-            pom {
-                name.set("PasskeyAuth UI")
-                description.set(
-                    "Componentes Jetpack Compose para PasskeyAuth: pantallas de sign-in y " +
-                        "enrollment, launcher híbrido y theming zero-config."
-                )
-                url.set("https://github.com/fjmarlop/PassKeyAuth")
-                inceptionYear.set("2026")
-
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-                developers {
-                    developer {
-                        id.set("fjmarlop")
-                        name.set("Francisco Javier Marmolejo López")
-                        url.set("https://github.com/fjmarlop")
-                    }
-                }
-                scm {
-                    connection.set("scm:git:git://github.com/fjmarlop/PassKeyAuth.git")
-                    developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
-                    url.set("https://github.com/fjmarlop/PassKeyAuth")
-                }
+        }
+        developers {
+            developer {
+                id.set("fjmarlop")
+                name.set("Francisco Javier Marmolejo López")
+                url.set("https://github.com/fjmarlop")
             }
+        }
+        scm {
+            connection.set("scm:git:git://github.com/fjmarlop/PassKeyAuth.git")
+            developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
+            url.set("https://github.com/fjmarlop/PassKeyAuth")
         }
     }
 }

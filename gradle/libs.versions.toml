@@ -7,6 +7,7 @@ targetSdk = "35"
 
 # SDK publicado (coordenada Maven: io.github.fjmarlop:passkeyauth-*)
 passkeyauth = "0.4.1"
+mavenPublish = "0.37.0"
 
 # AndroidX
 coreKtx = "1.15.0"
@@ -169,3 +170,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }

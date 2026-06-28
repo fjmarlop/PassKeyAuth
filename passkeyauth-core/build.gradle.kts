@@ -1,13 +1,11 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     jacoco
-    `maven-publish`
+    alias(libs.plugins.vanniktech.maven.publish)
 }
-
-// Coordenada Maven del artefacto publicado: io.github.fjmarlop:passkeyauth-core
-group = "io.github.fjmarlop"
-version = libs.versions.passkeyauth.get()
 
 android {
     namespace = "es.fjmarlop.corpsecauth.core"
@@ -37,17 +35,6 @@ android {
     // IMPORTANTE: Habilitar BuildConfig en library module
     buildFeatures {
         buildConfig = true
-    }
-
-    // Publicación: una sola variante (release) con sources JAR.
-    // NOTA: NO usamos withJavadocJar() de AGP — su generador (Dokka interno con
-    // ASM antiguo) falla con "PermittedSubclasses requires ASM9" en clases sealed.
-    // El javadoc JAR se adjunta manualmente más abajo (placeholder hasta integrar
-    // Dokka). Maven Central solo exige que el artefacto -javadoc.jar exista.
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
     }
 
     compileOptions {
@@ -135,63 +122,78 @@ configurations.named("lintPublish") {
 }
 
 // =====================================================================
-// Publicación Maven (POM para Maven Central)
+// Publicación Maven Central (plugin vanniktech)
 // =====================================================================
 //
-// Validación local:
+// Validación local (sin firma):
 //   .\gradlew.bat :passkeyauth-core:publishToMavenLocal
-//   → artefacto en ~/.m2/repository/io/github/fjmarlop/passkeyauth-core/
 //
-// La firma GPG y el deploy a Central Portal se configuran aparte (paso 3).
+// Deploy a Central Portal (requiere credenciales + clave GPG, ver DEVELOPMENT.md):
+//   .\gradlew.bat publishAndReleaseToMavenCentral
+//
+// El plugin auto-detecta el módulo Android library y configura la variante
+// release con sources + javadoc JAR (javadoc vacío al no haber Dokka — evita
+// el bug "PermittedSubclasses requires ASM9" del generador de AGP).
 // =====================================================================
-
-// Javadoc JAR placeholder (AGP withJavadocJar() roto con sealed classes, ver android{}).
-val javadocJar = tasks.register<Jar>("javadocJar") {
+// Javadoc JAR vacío. El generador de AGP 9 (javaDocReleaseGeneration con Dokka
+// interno + ASM antiguo) falla con "PermittedSubclasses requires ASM9" en clases
+// sealed. Desactivamos el javadoc de vanniktech (publishJavadocJar=false) y
+// adjuntamos un jar vacío — válido para Central hasta integrar Dokka.
+val javadocJar = tasks.register<Jar>("emptyJavadocJar") {
     archiveClassifier.set("javadoc")
 }
 
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = "io.github.fjmarlop"
-            artifactId = "passkeyauth-core"
-            version = project.version.toString()
+mavenPublishing {
+    // Central Portal es el host por defecto en vanniktech 0.30+.
+    // automaticRelease=false (default): sube el deployment pero no lo libera —
+    // se confirma manualmente en el portal tras validar.
+    publishToMavenCentral()
+    signAllPublications()
 
-            artifact(javadocJar)
+    configure(
+        AndroidSingleVariantLibrary(
+            variant = "release",
+            sourcesJar = true,
+            publishJavadocJar = false
+        )
+    )
 
-            afterEvaluate {
-                from(components["release"])
-            }
+    coordinates("io.github.fjmarlop", "passkeyauth-core", libs.versions.passkeyauth.get())
 
-            pom {
-                name.set("PasskeyAuth Core")
-                description.set(
-                    "SDK Android de autenticación passwordless con biometría hardware-backed " +
-                        "y device binding. Backend-agnóstico (Firebase como default)."
-                )
-                url.set("https://github.com/fjmarlop/PassKeyAuth")
-                inceptionYear.set("2026")
+    pom {
+        name.set("PasskeyAuth Core")
+        description.set(
+            "SDK Android de autenticación passwordless con biometría hardware-backed " +
+                "y device binding. Backend-agnóstico (Firebase como default)."
+        )
+        url.set("https://github.com/fjmarlop/PassKeyAuth")
+        inceptionYear.set("2026")
 
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-                developers {
-                    developer {
-                        id.set("fjmarlop")
-                        name.set("Francisco Javier Marmolejo López")
-                        url.set("https://github.com/fjmarlop")
-                    }
-                }
-                scm {
-                    connection.set("scm:git:git://github.com/fjmarlop/PassKeyAuth.git")
-                    developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
-                    url.set("https://github.com/fjmarlop/PassKeyAuth")
-                }
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
             }
         }
+        developers {
+            developer {
+                id.set("fjmarlop")
+                name.set("Francisco Javier Marmolejo López")
+                url.set("https://github.com/fjmarlop")
+            }
+        }
+        scm {
+            connection.set("scm:git:git://github.com/fjmarlop/PassKeyAuth.git")
+            developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
+            url.set("https://github.com/fjmarlop/PassKeyAuth")
+        }
+    }
+}
+
+// Adjunta el javadoc JAR vacío a la publicación creada por vanniktech.
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        artifact(javadocJar)
     }
 }
 
