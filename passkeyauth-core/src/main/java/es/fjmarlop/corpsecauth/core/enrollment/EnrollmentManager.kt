@@ -48,9 +48,6 @@ internal class EnrollmentManager private constructor(
             }
 
             // PASO 2: Invalidar password temporal (passwordless real)
-            /** TODO Paso 2 comentado para no cambiar constantemente la contraseña para pruebas **/
-            /*
-            println("🔐 EnrollmentManager: Paso 2 - Invalidando password temporal")
             emit(EnrollmentState.RequiresPasswordChange(isTemporaryPassword = true))
 
             passwordManagement.invalidateTemporaryPassword().getOrElse { error ->
@@ -58,7 +55,6 @@ internal class EnrollmentManager private constructor(
                 emit(EnrollmentState.Error(wrapException(error)))
                 return@flow
             }
-            */
 
             // PASO 3: Generar clave en KeyStore
             emit(EnrollmentState.GeneratingCryptoKey)

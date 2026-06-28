@@ -151,19 +151,23 @@ internal class EnrollmentManagerHappyPathTest {
             assertThat((validatingState as EnrollmentState.ValidatingCredentials).email)
                 .isEqualTo(testEmail)
 
-            // NOTA: el paso 2 (RequiresPasswordChange) NO se emite porque esta
-            // comentado en EnrollmentManager (ver TODO en el codigo). Cuando se
-            // descomente, este test debera anadir su verificacion aqui.
+            // Estado 3: RequiresPasswordChange (paso 2 — invalidar password temporal)
+            val passwordChangeState = awaitItem()
+            assertThat(passwordChangeState).isInstanceOf(
+                EnrollmentState.RequiresPasswordChange::class.java
+            )
+            assertThat((passwordChangeState as EnrollmentState.RequiresPasswordChange).isTemporaryPassword)
+                .isTrue()
 
-            // Estado 3: GeneratingCryptoKey (paso 3)
+            // Estado 4: GeneratingCryptoKey (paso 3)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
 
-            // Estado 4: AwaitingBiometric (paso 4)
+            // Estado 5: AwaitingBiometric (paso 4)
             assertThat(awaitItem()).isInstanceOf(
                 EnrollmentState.AwaitingBiometric::class.java
             )
 
-            // Estado 5: BindingDevice (paso 6 — el paso 5 cifrado no emite estado)
+            // Estado 6: BindingDevice (paso 6 — el paso 5 cifrado no emite estado)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.BindingDevice)
 
             // Estado 6: Success con el usuario correcto
@@ -185,8 +189,8 @@ internal class EnrollmentManagerHappyPathTest {
         assertThat((capturedCredentials as Credentials.EmailPassword).email).isEqualTo(testEmail)
         assertThat(capturedCredentials.password).isEqualTo(testPassword)
 
-        // 2. passwordManagement: NO debe llamarse (paso 2 comentado)
-        assertThat(passwordManagement.invalidateCallCount).isEqualTo(0)
+        // 2. passwordManagement.invalidateTemporaryPassword() (paso 2)
+        assertThat(passwordManagement.invalidateCallCount).isEqualTo(1)
 
         // 3. keyStoreManager.generateKey() (paso 3)
         assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(1)

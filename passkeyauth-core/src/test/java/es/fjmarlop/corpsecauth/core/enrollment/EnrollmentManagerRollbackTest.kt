@@ -47,14 +47,12 @@ import org.junit.Test
  * | Paso que falla | Acciones de rollback esperadas              | Test                     |
  * |----------------|--------------------------------------------|--------------------------|
  * | 1 (login)      | (ninguna — no se ha tocado nada todavía)   | `dado login falla...`   |
+ * | 2 (invalidate) | `signOut`                                   | `dado invalidate...`    |
  * | 3 (genKey)     | `signOut`                                   | `dado generateKey...`   |
  * | 4 (biometría)  | `deleteKey` + `signOut`                     | `dado biometria...`     |
  * | 5 (cifrado)    | `deleteKey` + `signOut`                     | `dado cipher doFinal...` |
  * | 6 (bindDevice) | `deleteKey` + `clear` + `signOut`           | `dado bindDevice...`    |
  * | 7 (storage)    | `deleteKey` + `revokeDevice` + `signOut`    | `dado saveEncrypted...` |
- *
- * El paso 2 (invalidateTemporaryPassword) esta comentado en código de producción
- * actualmente, asi que no se testea aquí. Cuando se descomente, añadir test.
  *
  * **Plantilla para tests futuros:** copiar este fichero para añadir mas escenarios
  * de rollback (paso 1, paso 3, paso 7, etc.). El patron es:
@@ -149,6 +147,7 @@ internal class EnrollmentManagerRollbackTest {
         enrollmentManager.enrollDevice(testEmail, testPassword).test {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
 
@@ -182,8 +181,8 @@ internal class EnrollmentManagerRollbackTest {
         coVerify(exactly = 0) { secureStorage.saveEncryptedToken(any()) }
         coVerify(exactly = 0) { secureStorage.saveUserId(any()) }
 
-        // passwordManagement (paso 2, comentado) NO se llamó
-        assertThat(passwordManagement.invalidateCallCount).isEqualTo(0)
+        // Paso 2 SÍ se llamó (se completó antes de que fallara paso 4)
+        assertThat(passwordManagement.invalidateCallCount).isEqualTo(1)
     }
 
     /**
@@ -208,6 +207,7 @@ internal class EnrollmentManagerRollbackTest {
         enrollmentManager.enrollDevice(testEmail, testPassword).test {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.BindingDevice)
@@ -305,6 +305,7 @@ internal class EnrollmentManagerRollbackTest {
         enrollmentManager.enrollDevice(testEmail, testPassword).test {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
 
             val errorState = awaitItem()
@@ -352,6 +353,7 @@ internal class EnrollmentManagerRollbackTest {
         enrollmentManager.enrollDevice(testEmail, testPassword).test {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.BindingDevice)
@@ -422,6 +424,7 @@ internal class EnrollmentManagerRollbackTest {
         enrollmentManager.enrollDevice(testEmail, testPassword).test {
             assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
             assertThat(awaitItem()).isEqualTo(EnrollmentState.GeneratingCryptoKey)
             assertThat(awaitItem()).isInstanceOf(EnrollmentState.AwaitingBiometric::class.java)
 
@@ -450,5 +453,45 @@ internal class EnrollmentManagerRollbackTest {
         assertThat(authBackend.authenticateCallCount).isEqualTo(1)
         assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(1)
         assertThat(biometricAuthenticator.encryptionCallCount).isEqualTo(1)
+    }
+
+    /**
+     * Rollback de PASO 2 (invalidateTemporaryPassword falla).
+     *
+     * Rollback esperado: solo `signOut` — la clave aún no fue generada (paso 3).
+     * Pasos 3-7 NO se ejecutan.
+     */
+    @Test
+    fun `dado invalidateTemporaryPassword falla entonces rollback hace signOut y no avanza`() = runTest {
+        // ARRANGE: paso 2 falla
+        val invalidateException = RuntimeException("Firebase password update failed")
+        passwordManagement.invalidateResult = Result.failure(invalidateException)
+
+        // ACT + ASSERT emisiones
+        enrollmentManager.enrollDevice(testEmail, testPassword).test {
+            assertThat(awaitItem()).isEqualTo(EnrollmentState.Idle)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.ValidatingCredentials::class.java)
+            assertThat(awaitItem()).isInstanceOf(EnrollmentState.RequiresPasswordChange::class.java)
+
+            val errorState = awaitItem()
+            assertThat(errorState).isInstanceOf(EnrollmentState.Error::class.java)
+            val wrappedException = (errorState as EnrollmentState.Error).exception
+            assertThat(wrappedException.cause).isSameInstanceAs(invalidateException)
+
+            awaitComplete()
+        }
+
+        // ASSERT rollback mínimo: solo signOut (clave no generada aún)
+        assertThat(authBackend.signOutCallCount).isEqualTo(1)
+        assertThat(keyStoreManager.deleteKeyCallCount).isEqualTo(0)
+        assertThat(keyStoreManager.generateKeyCallCount).isEqualTo(0)
+
+        // ASSERT pasos posteriores no se ejecutaron
+        assertThat(biometricAuthenticator.encryptionCallCount).isEqualTo(0)
+        assertThat(deviceRegistry.bindDeviceCallCount).isEqualTo(0)
+        coVerify(exactly = 0) { secureStorage.saveEncryptedToken(any()) }
+
+        // ASSERT paso 2 sí se intentó
+        assertThat(passwordManagement.invalidateCallCount).isEqualTo(1)
     }
 }
