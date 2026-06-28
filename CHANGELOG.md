@@ -7,6 +7,27 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [0.4.1] — 2026-06-28
+
+Sprint de pulido previo a v1.0.0. Sin cambios de lógica de negocio — solo calidad de SDK de cara a publicación.
+
+### Changed
+- **SDK silencioso por defecto** — eliminadas las 127 llamadas `println()` de todos los módulos internos del core (`AndroidBiometricAuthenticator`, `AndroidKeyStoreManager`, `CryptoProvider`, `FirebaseAuthBackend`, `FirestoreDeviceRegistry`, `SecureStorage`, `EnrollmentManager`, `PasskeyAuth`). El SDK ya no escribe a stdout. Ver ADR-005 (revisado).
+- **`IntegrityGuard.check()`** — el parámetro `logger` pasa de `::println` a `{}` (no-op) como default. Se conserva como punto de inyección para tests e integradores que quieran observabilidad.
+- **`PasskeyAuth.refreshAuthState()` e `invalidateSession()`** pasan de `public` a `internal` — son gestión de estado interno, no API de integrador.
+
+### Fixed
+- **Thread safety** — `PasskeyAuth.scope` pasa a `@Volatile private var` y `reset()` ahora hace `scope.cancel()` + recrea el scope. Evita que coroutines del ciclo anterior emitan al nuevo `authState`.
+- **Excepción semánticamente correcta** — `authenticate()` devuelve `FirebaseException.UserNotFound` (sesión expirada/revocada) cuando `getCurrentUser()` es `null`, en lugar de una excepción de device-binding incorrecta.
+- Eliminado import muerto `HardwareSecurityLevel` en `AndroidKeyStoreManager`.
+
+### Documentation
+- KDoc en las 11 funciones públicas de `PasskeyAuth`: `initialize`, `enrollDevice`, `authenticate`, `logout`, `unenrollDevice`, `isDeviceEnrolled`, `getCurrentUser`, `isAuthenticated`, `checkCapability`, `onAppBackground`, `onAppForeground`.
+
+> **Nota de desarrollo:** el paso 2 del enrollment (`invalidateTemporaryPassword`) sigue comentado intencionalmente en `EnrollmentManager` para facilitar pruebas repetidas con la misma contraseña temporal. Debe reactivarse antes de release de producción (passwordless real, ADR-006).
+
+---
+
 ## [0.4.0] — 2026-06-25
 
 ### Added
@@ -23,7 +44,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
-## [Unreleased] — v0.3.0
+## [0.3.0] — 2026-06-26
 
 ### 🛡️ Security Hardening — integridad del entorno y privacidad (ADR-015)
 
@@ -295,5 +316,9 @@ Francisco Javier Marmolejo López
 
 ---
 
-[0.2.0]: https://github.com/user/corpsecauth/compare/v0.1.0...v0.2.0
-[0.1.0-SNAPSHOT]: https://github.com/user/corpsecauth/releases/tag/v0.1.0
+[0.4.1]: https://github.com/fjmarlop/PassKeyAuth/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/fjmarlop/PassKeyAuth/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/fjmarlop/PassKeyAuth/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/fjmarlop/PassKeyAuth/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/fjmarlop/PassKeyAuth/compare/v0.1.0...v0.2.0
+[0.1.0-SNAPSHOT]: https://github.com/fjmarlop/PassKeyAuth/releases/tag/v0.1.0
