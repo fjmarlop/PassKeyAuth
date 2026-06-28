@@ -10,7 +10,7 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 
 ## 🎯 Estado del Proyecto
 
-**Versión actual:** 0.4.1 (pre-v1.0.0)
+**Versión actual:** 1.0.0 — disponible en Maven Central
 
 ### ✅ Completado
 - [x] Arquitectura multi-módulo con interfaces internas para testabilidad
@@ -23,6 +23,7 @@ Librería Android para autenticación sin contraseñas usando biometría hardwar
 - [x] **Security hardening (integridad + privacidad):** root/emulator/hooking detection, anti-debug, key attestation, tapjacking guard, FLAG_SECURE, privacy overlay, memory zeroing (ADR-015)
 - [x] **Backend-agnóstico:** `AuthBackend` / `DeviceRegistry` / `PasswordManagementBackend` públicos e inyectables en `initialize()`; Firebase como default (ADR-016)
 - [x] **SDK silencioso por defecto:** sin `println` a stdout (v0.4.1)
+- [x] **v1.0.0 publicado en Maven Central:** `io.github.fjmarlop:passkeyauth-core:1.0.0` y `passkeyauth-ui:1.0.0` — API pública estable, passwordless real activado
 - [x] **Suite de tests automatizados completa:** 135 JVM/Robolectric (core + UI Compose Robolectric) + 12 lint rules + 9 instrumented (StrongBox + TEE)
 - [x] **GitHub Actions CI:** `.github/workflows/ci.yml` — verde en cada push/PR
 - [x] **Manual smoke test checklist** para release (10 escenarios E2E con BiometricPrompt)
@@ -110,25 +111,23 @@ class MainActivity : ComponentActivity()  // No funciona
 
 ## 🚀 Instalación
 
-> **Nota:** SDK aún no publicado en Maven Central
+### Maven Central
 
-### Para Desarrollo Local
+```gradle
+dependencies {
+    implementation("io.github.fjmarlop:passkeyauth-core:1.0.0")
+    // Opcional — componentes Compose (PasskeySignInScreen, PasskeyEnrollScreen, PasskeyAuthContract):
+    implementation("io.github.fjmarlop:passkeyauth-ui:1.0.0")
+}
+```
+
+### Desarrollo local (desde fuentes)
 ```bash
 git clone https://github.com/fjmarlop/PasskeyAuth.git
 cd PasskeyAuth
 ./gradlew publishToMavenLocal
 ```
-Esto publica los artefactos en tu `~/.m2/repository` bajo la coordenada
-`io.github.fjmarlop:passkeyauth-core:0.4.1`. Añade `mavenLocal()` a tus repos para consumirlos.
-
-### Instalación Futura (Maven Central, v1.0+)
-```gradle
-dependencies {
-    implementation("io.github.fjmarlop:passkeyauth-core:1.0.0")
-    // Opcional — componentes Compose:
-    implementation("io.github.fjmarlop:passkeyauth-ui:1.0.0")
-}
-```
+Añade `mavenLocal()` a tus repositorios y usa `io.github.fjmarlop:passkeyauth-core:1.0.0`.
 
 ---
 
@@ -453,19 +452,20 @@ El SDK tiene una pirámide de tests con cuatro niveles. Estrategia documentada e
 - [x] **v0.3.0** — Módulo `passkeyauth-ui`: integración híbrida (composables + launcher), theming zero-config, `checkCapability()` + fusión de `PasskeyAuthConfig` (ADR-013/ADR-014). Security hardening: root/emulator/hooking detection, anti-debug, key attestation, tapjacking guard, FLAG_SECURE, privacy overlay (ADR-015)
 - [x] **v0.4.0** — Backend-agnóstico: `AuthBackend` / `DeviceRegistry` / `PasswordManagementBackend` públicos e inyectables; Firebase como default (ADR-016)
 - [x] **v0.4.1** — Pre-v1.0.0 polish: SDK silencioso (sin `println`), thread safety en `scope`, API reducida (`internal`), KDoc en API pública
-- [ ] **v1.0.0** — Reactivar passwordless real + Maven Central (POM, firma GPG, LICENSE) + Producción ready
+- [x] **v1.0.0** — Passwordless real activado + Maven Central (`io.github.fjmarlop`, firma GPG, LICENSE Apache 2.0) + API pública estable
 
 ---
 
 ## 📊 Estadísticas
 
-**Versión 0.4.1 (pre-v1.0.0):**
+**Versión 1.0.0:**
 - ADRs documentados: 16
 - Tests automatizados verdes en CI: 131 core + 4 UI JVM/Robolectric + 12 lint = **147 automáticos**
 - Tests instrumented en hardware: 9 por device (StrongBox + TEE)
 - CI GitHub Actions: cancela runs obsoletos (`concurrency: cancel-in-progress`)
 - Módulos: `passkeyauth-core`, `passkeyauth-ui`, `passkeyauth-lint`, `sample`
 - SDK silencioso por defecto (sin `println` a stdout) y API pública documentada con KDoc
+- Publicado en Maven Central: `io.github.fjmarlop:passkeyauth-core:1.0.0` y `passkeyauth-ui:1.0.0`
 
 ---
 
