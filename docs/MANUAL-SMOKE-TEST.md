@@ -232,7 +232,7 @@ Para cada escenario fallido recolectar:
 3. Intentar login con biometric
 
 **Expected:**
-- `DeviceBindingManager.validateDevice()` devuelve `false`
+- `FirestoreDeviceRegistry.validateDevice()` devuelve `false`
 - SDK detecta la revocación y emite `DeviceException.Revoked`
 - Sample app fuerza logout y muestra mensaje "Dispositivo revocado por administrador"
 

@@ -279,6 +279,8 @@ Si descubres una vulnerabilidad de seguridad en PasskeyAuth SDK:
 | Versión | Fecha | Auditor | Hallazgos |
 |---------|-------|---------|-----------|
 | v0.2.0  | 2026-01 | Interno | Release inicial |
+| v0.3.0  | 2026-06 | Interno | Runtime integrity hardening (root/emulator/hooking detection, anti-debug, key attestation, tapjacking guard, FLAG_SECURE, privacy overlay, memory zeroing) — ADR-015 |
+| v0.4.1  | 2026-06 | Interno | SDK silencioso por defecto (sin `println` → cero riesgo de filtrar PII/tokens a logcat); thread safety en `scope` — ADR-005 (rev.) |
 
 ---
 

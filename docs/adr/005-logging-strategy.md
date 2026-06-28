@@ -1,7 +1,35 @@
 # ADR-005: Sistema de Logging Configurable
 
 **Fecha:** 2026-01-18
-**Estado:** Aceptado
+**Estado:** ⚠️ **Reemplazado** (2026-06-28) — ver "Actualización" abajo
+
+---
+
+## ⚠️ Actualización (2026-06-28, v0.4.1) — Decisión revisada
+
+**La propuesta original de este ADR (un `PasskeyAuthLogger` configurable con niveles) NO se implementó.**
+
+Durante el sprint de pulido previo a v1.0.0 se tomó una decisión más simple y conservadora:
+
+> **El SDK es silencioso por defecto.** Se eliminaron las 127 llamadas `println()` de todos los
+> módulos internos. El SDK ya no escribe a stdout en absoluto.
+
+**Razones para descartar `PasskeyAuthLogger`:**
+- **YAGNI** — ningún integrador pidió logging configurable; añadía superficie de API y mantenimiento sin demanda real.
+- Un SDK que no imprime nada es el comportamiento más seguro por defecto (cero riesgo de filtrar PII/tokens a logcat), que era el objetivo principal de este ADR.
+- Los errores ya se propagan de forma estructurada vía `Result<T>` + jerarquía `PasskeyAuthException`, y el estado vía `PasskeyAuth.authState`. El integrador tiene toda la observabilidad que necesita sin logs del SDK.
+
+**Punto de inyección que sí quedó:** `IntegrityGuard.check()` acepta `logger: (String) -> Unit`
+con default `{}` (no-op). Tests e integradores avanzados pueden inyectar un logger ahí para
+trazar las comprobaciones de integridad, pero no es API del facade.
+
+**Si en el futuro se necesita logging configurable**, la sección de diseño de abajo sigue siendo
+una referencia válida (incluido el patrón `setLogListener` para reenviar a Timber/Crashlytics) —
+pero se reabriría como un ADR nuevo, no reactivando éste.
+
+El resto de este documento se conserva como **registro histórico** de la propuesta original.
+
+---
 
 ## Contexto y Problema
 
@@ -274,8 +302,8 @@ Buscar todos los `println()` y reemplazar con:
 ## Revisiones
 
 - **2026-01-18:** Creación inicial
-- **Próxima revisión:** En v0.3 al implementar PasskeyAuthLogger
+- **2026-06-28 (v0.4.1):** Decisión revisada. `PasskeyAuthLogger` descartado (YAGNI). El SDK pasa a ser silencioso por defecto: eliminadas todas las llamadas `println()`. Ver bloque "Actualización" al inicio.
 
 ---
 
-**Nota:** Los `println()` actuales son temporales y serán reemplazados antes de v1.0.
+**Nota:** Los `println()` se eliminaron por completo en v0.4.1 — el SDK no escribe a stdout. La propuesta de `PasskeyAuthLogger` de este documento queda como referencia histórica, no implementada.

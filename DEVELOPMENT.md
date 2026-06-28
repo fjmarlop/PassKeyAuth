@@ -11,26 +11,29 @@ Guia para desarrolladores que trabajan en PasskeyAuth SDK.
 
 **Estructura de paquetes:**
 ```
-es.fjmarlop.corpsecauth.core/
-â”œâ”€â”€ auth/               # BiometricAuthenticator
-â”œâ”€â”€ crypto/             # KeyStoreManager, CryptoProvider, EncryptedData
-â”œâ”€â”€ enrollment/         # EnrollmentManager
-â”œâ”€â”€ errors/             # Jerarquia de PasskeyAuthException (6 archivos)
-â”œâ”€â”€ firebase/           # FirebaseAuthManager, DeviceBindingManager
-â”œâ”€â”€ models/             # AuthResult, AuthUser, BiometricConfig, EnrollmentState, DeviceInfo
-â””â”€â”€ storage/            # SecureStorage (DataStore wrapper)
+es.fjmarlop.corpsecauth/                     # Tipos PÚBLICOS de la API
+├── PasskeyAuth                              # facade object
+├── PasskeyAuthConfig, PasskeyCapability     # configuración + capability
+├── AuthBackend, DeviceRegistry,             # contratos de backend inyectables (ADR-016)
+│   PasswordManagementBackend
+├── Credentials, AuthSession                 # modelos para implementar AuthBackend
+└── RootPolicy, EmulatorPolicy,              # políticas de integridad (ADR-015)
+    HardwareSecurityLevel
+
+es.fjmarlop.corpsecauth.core/                # Implementación INTERNA
+├── auth/               # BiometricAuthenticator (impl AndroidBiometricAuthenticator)
+├── crypto/             # KeyStoreManager, CryptoProvider, EncryptedData, KeyAttestationVerifier
+├── enrollment/         # EnrollmentManager (transaccional)
+├── errors/             # Jerarquia de PasskeyAuthException (7 archivos, incl. IntegrityException)
+├── firebase/           # FirebaseAuthBackend, FirestoreDeviceRegistry (impls default)
+├── models/             # AuthResult, AuthUser, BiometricConfig, EnrollmentState, DeviceInfo
+├── security/           # RootDetector, EmulatorDetector, HookDetector, IntegrityGuard (ADR-015)
+└── storage/            # SecureStorage (DataStore wrapper)
 ```
 
-**Archivos implementados (19 total):**
-- Models: 5
-- Exceptions: 6
-- Crypto: 3
-- Auth: 1
-- Firebase: 2
-- Storage: 1
-- Enrollment: 1
+**Diseño de visibilidad:** los contratos de backend (`AuthBackend`, `DeviceRegistry`, `PasswordManagementBackend`) y sus modelos (`Credentials`, `AuthSession`) son **públicos** para que el integrador pueda implementar backends propios. Las implementaciones Firebase y el resto de infraestructura son `internal`.
 
-**Testing:** 73 tests JVM/Robolectric — ver `src/test/java/` y [ADR-011](docs/adr/011-testing-stack-and-strategy.md)
+**Testing:** 131 tests JVM/Robolectric en core — ver `src/test/java/` y [ADR-011](docs/adr/011-testing-stack-and-strategy.md)
 
 #### passkeyauth-ui
 **Proposito:** Componentes Compose opcionales. **Modelo híbrido** (ADR-014): composables primitivos personalizables + launcher fino de una línea.
@@ -115,15 +118,17 @@ echo "sdk.dir=C:\\Users\\TuUsuario\\AppData\\Local\\Android\\Sdk" > local.proper
 // aislamiento hardware completo de las claves. Fallback a TEE si no existe.
 ```
 
-**API publica:** KDoc en ingles
+**API publica:** KDoc en espaniol (consistente con los mensajes de error y comentarios del SDK)
 ```kotlin
 /**
- * Authenticates the user using biometric credentials.
+ * Autentica al usuario mediante biometría hardware-backed (BIOMETRIC_STRONG).
  *
- * @return [Result] containing [AuthToken] on success or [PasskeyAuthException] on failure
- * @throws IllegalStateException if device is not enrolled
+ * @param activity Activity requerida para mostrar el prompt biométrico.
+ * @return [Result.success] con [AuthUser] si la autenticación fue correcta,
+ *         [Result.failure] con [PasskeyAuthException] en caso de fallo.
+ * @throws IllegalStateException si el SDK no está inicializado.
  */
-suspend fun authenticate(): Result<AuthToken>
+suspend fun authenticate(activity: FragmentActivity): Result<AuthUser>
 ```
 
 ### Error Handling
@@ -155,8 +160,8 @@ Pirámide de tests documentada en [ADR-011](docs/adr/011-testing-stack-and-strat
 
 ```bash
 # 1) JVM + Robolectric — ejecutados por CI
-.\gradlew.bat :passkeyauth-core:testDebugUnitTest   # 119 tests core (incl. 36 de seguridad)
-.\gradlew.bat :passkeyauth-ui:testDebugUnitTest     # tests Compose Robolectric
+.\gradlew.bat :passkeyauth-core:testDebugUnitTest   # 131 tests core (incl. 32 de seguridad)
+.\gradlew.bat :passkeyauth-ui:testDebugUnitTest     # 4 tests Compose Robolectric
 
 # 2) Lint rules (12 tests) — ejecutados por CI
 .\gradlew.bat :passkeyauth-lint:test
@@ -173,11 +178,12 @@ Pirámide de tests documentada en [ADR-011](docs/adr/011-testing-stack-and-strat
 
 | Nivel | Carpeta | Tests | Qué valida |
 |---|---|---|---|
-| JVM puro | `src/test/java/` | 22 | `EnrollmentManager`: happy path, rollback por paso, helpers, contratos de fakes |
+| JVM puro | `src/test/java/` | ~35 | `EnrollmentManager`: happy path, rollback por paso, helpers; `CryptoProvider`, `KeyAttestationVerifier`, contratos de fakes |
 | JVM seguridad | `src/test/java/.../core/security/` | 32 | `RootDetector`, `EmulatorDetector`, `HookDetector`, `IntegrityGuard` (señales inyectadas) |
-| Robolectric | `src/test/java/` (mismo runner) | 51+ | `SecureStorage` con DataStore; `FirebaseAuthBackend` y `FirestoreDeviceRegistry` con MockK; facade `PasskeyAuth` |
+| Robolectric | `src/test/java/` (mismo runner) | ~64 | `SecureStorage` con DataStore; `FirebaseAuthBackend` y `FirestoreDeviceRegistry` con MockK; facade `PasskeyAuth` + inyección de backend; `PasskeyAuthConfig` |
+| UI Compose Robolectric | `passkeyauth-ui/src/test/` | 4 | `PasskeySignInScaffold` (CTA por estado, escape hatch), tapjacking |
 | Lint rules | `passkeyauth-lint/src/test/` | 12 | L1/L2/L3 — `FragmentActivity`, anti-pattern SplashScreen, lifecycle hooks |
-| Instrumented | `src/androidTest/java/` | 8–9/device | `AndroidKeyStoreManager` con StrongBox real vs TEE |
+| Instrumented | `src/androidTest/java/` | 9/device | `AndroidKeyStoreManager` con StrongBox real vs TEE |
 
 ### Patrones clave
 
@@ -408,14 +414,21 @@ Los tests de seguridad de `AndroidKeyStoreManager` (inextractibilidad de claves,
 
 ### Logs
 
-Actualmente usando `println()` para desarrollo:
+**El SDK es silencioso por defecto (desde v0.4.1).** No escribe a stdout — todas las llamadas
+`println()` fueron eliminadas. Los errores se propagan vía `Result<T>` y la jerarquía
+`PasskeyAuthException`; el estado se observa vía `PasskeyAuth.authState`. `IntegrityGuard.check()`
+acepta un `logger: (String) -> Unit` (default `{}`) como punto de inyección de observabilidad.
+
+<!--
+Histórico (pre-v0.4.1, ya no aplica):
 ```kotlin
 println("ðŸ” KeyStoreManager: Clave generada exitosamente")
 ```
 
-**Futuro (v0.3):** Implementar PasskeyAuthLogger configurable segun ADR-005.
+Futuro (v0.3): Implementar PasskeyAuthLogger configurable segun ADR-005.
+-->
 
-**Nunca loguear:**
+**Si añades observabilidad nueva, NUNCA loguees:**
 - Contrasenias
 - Tokens de sesion
 - Device IDs sin ofuscar
