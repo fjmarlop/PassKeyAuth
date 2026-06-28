@@ -2,7 +2,12 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     jacoco
+    `maven-publish`
 }
+
+// Coordenada Maven del artefacto publicado: io.github.fjmarlop:passkeyauth-core
+group = "io.github.fjmarlop"
+version = libs.versions.passkeyauth.get()
 
 android {
     namespace = "es.fjmarlop.corpsecauth.core"
@@ -32,6 +37,17 @@ android {
     // IMPORTANTE: Habilitar BuildConfig en library module
     buildFeatures {
         buildConfig = true
+    }
+
+    // Publicación: una sola variante (release) con sources JAR.
+    // NOTA: NO usamos withJavadocJar() de AGP — su generador (Dokka interno con
+    // ASM antiguo) falla con "PermittedSubclasses requires ASM9" en clases sealed.
+    // El javadoc JAR se adjunta manualmente más abajo (placeholder hasta integrar
+    // Dokka). Maven Central solo exige que el artefacto -javadoc.jar exista.
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 
     compileOptions {
@@ -116,6 +132,67 @@ dependencies {
 // runner del consumer (que ya tiene Kotlin), no necesitamos empaquetarlas.
 configurations.named("lintPublish") {
     isTransitive = false
+}
+
+// =====================================================================
+// Publicación Maven (POM para Maven Central)
+// =====================================================================
+//
+// Validación local:
+//   .\gradlew.bat :passkeyauth-core:publishToMavenLocal
+//   → artefacto en ~/.m2/repository/io/github/fjmarlop/passkeyauth-core/
+//
+// La firma GPG y el deploy a Central Portal se configuran aparte (paso 3).
+// =====================================================================
+
+// Javadoc JAR placeholder (AGP withJavadocJar() roto con sealed classes, ver android{}).
+val javadocJar = tasks.register<Jar>("javadocJar") {
+    archiveClassifier.set("javadoc")
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("release") {
+            groupId = "io.github.fjmarlop"
+            artifactId = "passkeyauth-core"
+            version = project.version.toString()
+
+            artifact(javadocJar)
+
+            afterEvaluate {
+                from(components["release"])
+            }
+
+            pom {
+                name.set("PasskeyAuth Core")
+                description.set(
+                    "SDK Android de autenticación passwordless con biometría hardware-backed " +
+                        "y device binding. Backend-agnóstico (Firebase como default)."
+                )
+                url.set("https://github.com/fjmarlop/PassKeyAuth")
+                inceptionYear.set("2026")
+
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("fjmarlop")
+                        name.set("Francisco Javier Marmolejo López")
+                        url.set("https://github.com/fjmarlop")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:git://github.com/fjmarlop/PassKeyAuth.git")
+                    developerConnection.set("scm:git:ssh://github.com:fjmarlop/PassKeyAuth.git")
+                    url.set("https://github.com/fjmarlop/PassKeyAuth")
+                }
+            }
+        }
+    }
 }
 
 // =====================================================================

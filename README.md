@@ -118,13 +118,15 @@ git clone https://github.com/fjmarlop/PasskeyAuth.git
 cd PasskeyAuth
 ./gradlew publishToMavenLocal
 ```
+Esto publica los artefactos en tu `~/.m2/repository` bajo la coordenada
+`io.github.fjmarlop:passkeyauth-core:0.4.1`. Añade `mavenLocal()` a tus repos para consumirlos.
 
-### Instalación Futura (v1.0+)
+### Instalación Futura (Maven Central, v1.0+)
 ```gradle
 dependencies {
-    implementation("es.fjmarlop.passkeyauth:core:1.0.0")
+    implementation("io.github.fjmarlop:passkeyauth-core:1.0.0")
     // Opcional — componentes Compose:
-    implementation("es.fjmarlop.passkeyauth:ui:1.0.0")
+    implementation("io.github.fjmarlop:passkeyauth-ui:1.0.0")
 }
 ```
 
