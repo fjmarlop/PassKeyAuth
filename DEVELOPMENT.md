@@ -442,6 +442,68 @@ Para analizar performance de crypto operations:
 3. Ejecutar operacion
 4. Stop recording > analizar flame chart
 
+## Publicación en Maven Central
+
+El SDK se publica con el plugin [vanniktech/gradle-maven-publish-plugin](https://github.com/vanniktech/gradle-maven-publish-plugin)
+al **Central Portal** (`central.sonatype.com`). Coordenadas:
+`io.github.fjmarlop:passkeyauth-core` y `io.github.fjmarlop:passkeyauth-ui`.
+
+La config Gradle ya está lista (ver `mavenPublishing { }` en cada módulo). Faltan
+pasos manuales de una sola vez (cuenta + claves), porque dependen de secretos.
+
+### 1. Verificar el namespace (una vez)
+
+En `central.sonatype.com` → **Publishing Settings → Namespace** → añadir
+`io.github.fjmarlop`. Para namespaces `io.github.*` la verificación es por GitHub:
+el portal da un código, creas un repo público con ese nombre en tu cuenta, y pulsas
+verificar. Como el repo vive en `github.com/fjmarlop`, te vale tu propia cuenta.
+
+### 2. Generar clave GPG (una vez)
+
+Maven Central exige cada artefacto firmado. Instala GnuPG y:
+```bash
+gpg --gen-key                                   # genera el par de claves
+gpg --list-secret-keys --keyid-format short     # anota el KEY_ID (8 hex)
+gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>   # publica la pública
+gpg --export-secret-keys --armor <KEY_ID> > secret.asc      # exporta la privada
+```
+
+### 3. Credenciales (una vez)
+
+En el portal: **Generate User Token** → obtienes un usuario y password de deploy.
+
+En `~/.gradle/gradle.properties` (NUNCA en el repo):
+```properties
+mavenCentralUsername=<token-username>
+mavenCentralPassword=<token-password>
+
+signingInMemoryKey=<contenido de secret.asc, en una línea con \n>
+signingInMemoryKeyPassword=<passphrase de la clave GPG>
+```
+> El plugin vanniktech lee estas propiedades automáticamente. `signingInMemoryKey`
+> es el bloque ASCII-armored de la clave privada (entre las líneas BEGIN/END).
+
+### 4. Publicar
+
+```bash
+# Sube el deployment y lo libera automáticamente:
+.\gradlew.bat publishAndReleaseToMavenCentral
+
+# O, más conservador: sube pero deja la liberación manual en el portal:
+.\gradlew.bat publishToMavenCentral
+```
+Tras subir, el deployment aparece en **Deployments**; si usaste `publishToMavenCentral`
+hay que pulsar **Publish** en el portal para liberarlo a Central.
+
+### Notas
+
+- **Javadoc JAR vacío:** AGP 9 genera el javadoc con un Dokka interno que falla en
+  clases `sealed` (`PermittedSubclasses requires ASM9`). Por eso adjuntamos un jar
+  de javadoc vacío (válido para Central). Integrar Dokka para javadoc real queda
+  pendiente — no bloquea la publicación.
+- **Validación local sin firma:** `.\gradlew.bat generatePomFileForMavenPublication`
+  produce el POM sin necesitar GPG. `publishToMavenLocal` sí requiere la clave.
+
 ## Contacto
 
 Preguntas sobre desarrollo: [Abrir issue en GitHub]
