@@ -69,6 +69,211 @@ Splash ──► no enrollado ──► Credentials ──► PasskeyEnrollScree
 Home (logout) ───────────────────────────────────────────────────► Credentials
 ```
 
+## Guía de Integración Paso a Paso (App Nueva)
+
+Esta sección es para **integradores** que añaden el SDK a una app Android existente
+o nueva — no para desarrollo del propio SDK. Sigue los pasos en orden; cada uno
+indica de dónde viene el patrón (normalmente el módulo `sample` de este repo, que
+es la referencia funcionando).
+
+### Paso 1 — Añadir la dependencia
+
+```gradle
+dependencies {
+    implementation("io.github.fjmarlop:passkeyauth-core:1.0.0")
+    // Necesario si vas a usar los composables o el launcher del SDK:
+    implementation("io.github.fjmarlop:passkeyauth-ui:1.0.0")
+}
+```
+
+### Paso 2 — Configurar el `AndroidManifest.xml`
+
+Copia esto de [`sample/src/main/AndroidManifest.xml`](sample/src/main/AndroidManifest.xml):
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+<queries>
+    <package android:name="com.google.android.gms" />
+</queries>
+
+<application
+    android:allowBackup="false"                                   <!-- F1: sin backup de claves/tokens -->
+    android:fullBackupContent="false"
+    android:networkSecurityConfig="@xml/network_security_config"  <!-- C2: sin tráfico en claro -->
+    ...>
+```
+
+`network_security_config.xml` mínimo (sin cert pinning — ver [§ Cert pinning](#cert-pinning-para-integradores)
+si lo necesitas):
+```xml
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+</network-security-config>
+```
+
+### Paso 3 — Tu Activity DEBE ser `FragmentActivity`
+
+```kotlin
+class MainActivity : FragmentActivity() {   // ❌ NO ComponentActivity, NO AppCompatActivity
+```
+`BiometricPrompt` usa Fragment transactions internamente — con otra clase base
+obtienes `ClassCastException` en runtime. Ver [Common Issues](#classcastexception-cannot-cast-to-fragmentactivity).
+
+### Paso 4 — Elegir modo de integración de UI
+
+El SDK ofrece dos modos (ADR-014). Son mutuamente excluyentes por pantalla —
+elige uno según cuánto control visual necesitas:
+
+| | **A. Launcher (`PasskeyAuthContract`)** | **B. Composables directos** |
+|---|---|---|
+| Integración | Una línea, `ActivityResultContract` | `PasskeySignInScreen` / `PasskeyEnrollScreen` en tu propio nav graph |
+| Branding | Fijo (el del SDK) | Total — heredan tu `MaterialTheme` |
+| Dónde vive la UI sensible | En `PasskeyAuthActivity` (Activity **interna** del SDK) | En **tu** Activity |
+| FLAG_SECURE / anti-tapjacking | Ya aplicado por el SDK, no requiere nada | **Debes aplicarlo tú** (Paso 5) |
+| Referencia | [`PasskeyAuthContract.kt`](passkeyauth-ui/src/main/java/es/fjmarlop/corpsecauth/ui/launcher/PasskeyAuthContract.kt) | [`AppNavigation.kt`](sample/src/main/java/es/fjmarlop/corpsecauth/sample/ui/navigation/AppNavigation.kt) del sample |
+
+**Modo A — Launcher:**
+```kotlin
+val launcher = rememberLauncherForActivityResult(PasskeyAuthContract()) { result ->
+    when (result) {
+        PasskeyAuthResult.Authenticated -> navigateToHome()
+        PasskeyAuthResult.Cancelled     -> { /* fallback del host */ }
+        is PasskeyAuthResult.Failed     -> showError(result.reason)
+    }
+}
+launcher.launch(PasskeyAuthConfig.Default)
+```
+
+**Modo B — Composables directos** (el que usa `sample`):
+```kotlin
+val activity = LocalContext.current as FragmentActivity
+PasskeyEnrollScreen(
+    activity = activity,
+    email = email,
+    temporaryPassword = password,
+    onEnrolled = { navController.navigate(Screen.Home.route) },
+)
+// o, para login:
+PasskeySignInScreen(
+    activity = activity,
+    config = PasskeyAuthConfig.Custom(allowHostFallback = true),
+    onAuthenticated = { navController.navigate(Screen.Home.route) },
+    onHostFallback = { /* dispositivo desenrolado */ },
+)
+```
+
+### Paso 5 — Seguridad del host: `FLAG_SECURE` + anti-tapjacking
+
+**Esta es la causa #1 de confusión al integrar el SDK — léela con atención.**
+
+`FLAG_SECURE` es un flag de `Window`, y en Android **cada `Activity` tiene su
+propia `Window`**. El SDK solo lo aplica internamente a su propia
+[`PasskeyAuthActivity`](passkeyauth-ui/src/main/java/es/fjmarlop/corpsecauth/ui/launcher/PasskeyAuthActivity.kt)
+(la que se abre con el **Modo A — Launcher**). No puede tocar la `Window` de
+**tu** Activity, aunque estés usando sus composables dentro de ella.
+
+- **Si usas Modo A (Launcher):** no necesitas hacer nada — la pantalla
+  sensible vive en `PasskeyAuthActivity`, que ya está protegida.
+- **Si usas Modo B (composables directos), como hace `sample`:** tu Activity
+  aloja directamente `PasskeyEnrollScreen`/`PasskeySignInScreen` (y
+  probablemente tu propia pantalla de credenciales) — **debes aplicar el
+  mismo flag tú mismo**, exactamente como hace
+  [`MainActivity.kt`](sample/src/main/java/es/fjmarlop/corpsecauth/sample/MainActivity.kt):
+
+```kotlin
+class MainActivity : FragmentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Bloquea screenshots/grabación y oculta el contenido en el app switcher.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        enableEdgeToEdge()
+        // ...
+    }
+
+    // Rechaza toques cuando la ventana está cubierta por un overlay de otra
+    // app (tapjacking). Mismo bloque que usa PasskeyAuthActivity internamente.
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED != 0) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ev.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED != 0) return false
+        return super.dispatchTouchEvent(ev)
+    }
+}
+```
+
+Síntoma si te lo saltas: **las screenshots no se bloquean y la app aparece
+visible (no oculta) en el selector de apps recientes** cuando usas los
+composables directamente en tu propia Activity. No es un bug del SDK — es
+protección por-Activity que Android no puede aplicar por ti.
+
+### Paso 6 — Inicializar el SDK
+
+En `Application.onCreate()` (recomendado, una sola vez para todo el ciclo de
+vida de la app) o en la primera Activity:
+
+```kotlin
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        applicationScope.launch {
+            PasskeyAuth.initialize(
+                context = applicationContext,
+                config = PasskeyAuthConfig.Default,  // o Custom(...) — ver ADR-013
+                // authBackend / deviceRegistry opcionales — sin ellos usa Firebase
+            ).onFailure { error ->
+                if (error is IntegrityException) {
+                    // Entorno comprometido (root/hooking/emulador) y rootPolicy=Block
+                }
+            }
+        }
+    }
+}
+```
+Si usas Firebase (backend por defecto): añade `google-services.json` al módulo
+de tu app y habilita **Authentication > Email/Password** en Firebase Console.
+Para un backend propio (Keycloak, OIDC), ver [ADR-016](docs/adr/016-backend-agnostic-sdk.md)
+e implementa `AuthBackend`/`DeviceRegistry`.
+
+### Paso 7 — Hooks de ciclo de vida (obligatorio para el timeout de sesión)
+
+En la Activity raíz de tu app:
+```kotlin
+override fun onStart() {
+    super.onStart()
+    if (!isChangingConfigurations) PasskeyAuth.onAppForeground()
+}
+
+override fun onStop() {
+    super.onStop()
+    if (!isChangingConfigurations) PasskeyAuth.onAppBackground()
+}
+```
+Sin esto, `sessionTimeoutMinutes` no tiene efecto — la sesión nunca expira.
+
+### Paso 8 — Flujo de enrollment y login
+
+Ver [README § Uso Básico](README.md#-uso-básico) para el flujo completo con
+`enrollDevice()`, `authenticate()`, `isDeviceEnrolled()`, `logout()` y
+`unenrollDevice()`.
+
+### Checklist final antes de producción
+
+- [ ] `MainActivity` (o equivalente) extiende `FragmentActivity`
+- [ ] `allowBackup="false"` + `networkSecurityConfig` en el manifest
+- [ ] Si usas Modo B (composables directos): `FLAG_SECURE` + `dispatchTouchEvent` en tu Activity
+- [ ] `onAppForeground()` / `onAppBackground()` implementados
+- [ ] Splash/router **siempre** pasa por `PasskeySignInScreen`/`authenticate()` — nunca salta a Home solo con `isDeviceEnrolled()` (ver [SECURITY.md](SECURITY.md))
+- [ ] `PasskeyAuthConfig.rootPolicy`/`emulatorPolicy` revisados para tu modelo de amenaza (Default = `Block` ambos)
+- [ ] Cert pinning evaluado — ver [§ Cert pinning para integradores](#cert-pinning-para-integradores)
+
+---
+
 ## Setup de Desarrollo
 
 ### Requisitos
@@ -369,6 +574,8 @@ Toda decision importante debe documentarse en `docs/adr/`.
 - ADR-012: Custom Lint Rules para enforcing del contrato del SDK (FragmentActivity, SplashScreen anti-pattern, lifecycle hooks)
 - ADR-013: Invariantes de seguridad no negociables y contrato de PasskeyAuthConfig (checkCapability + fusión de config)
 - ADR-014: Módulo passkeyauth-ui — integración híbrida, theming zero-config y 6 estados
+- ADR-015: Runtime integrity y privacy hardening (root/emulator/hooking, anti-debug, key attestation, FLAG_SECURE, tapjacking, privacy overlay)
+- ADR-016: Backend-agnostic SDK — `AuthBackend`/`DeviceRegistry`/`PasswordManagementBackend` públicos e inyectables
 
 ## Seguridad
 
@@ -384,18 +591,20 @@ Toda decision importante debe documentarse en `docs/adr/`.
 
 Los tests de seguridad de `AndroidKeyStoreManager` (inextractibilidad de claves, aislamiento StrongBox vs TEE) están cubiertos por los tests instrumented en `src/androidTest/java/`. Ver [ADR-004](docs/adr/004-keystoremanager-aes-gcm.md) para la matriz de validación hardware.
 
-## Release Process (Futuro)
+## Release Process
 
-1. Update version en `gradle.properties`
+Ejecutado por primera vez para v1.0.0 (2026-06-28) — usar como plantilla para
+releases futuras.
+
+1. Update version en `gradle/libs.versions.toml` (`passkeyauth = "X.Y.Z"`)
 2. Update `CHANGELOG.md`
-3. Run full test suite (`./gradlew passkeyauth-core:testDebugUnitTest`)
+3. Run full test suite (`.\gradlew.bat :passkeyauth-core:testDebugUnitTest`)
 4. Run instrumented tests en device A (StrongBox) y device B (TEE only)
 5. **Ejecutar [Manual Smoke Test](docs/MANUAL-SMOKE-TEST.md)** — bloqueante: BiometricPrompt no se puede automatizar
 6. Create release branch: `release/vX.Y.Z`
-7. Build release artifacts: `.\gradlew.bat assembleRelease`
-8. Tag commit: `git tag vX.Y.Z`
-9. Publish to Maven Central
-10. Create GitHub Release
+7. PR a `main`, revisar, mergear
+8. Publish to Maven Central — ver [§ Publicación en Maven Central](#publicación-en-maven-central)
+9. Create GitHub Release
 
 ## Metricas de Calidad
 
@@ -511,7 +720,7 @@ Preguntas sobre desarrollo: [Abrir issue en GitHub]
 ---
 
 **Autor:** Francisco Javier Marmolejo Lopez  
-**Last updated:** 2026-01-18
+**Last updated:** 2026-07-01
 
 
 ## Common Issues
@@ -541,5 +750,22 @@ class MainActivity : FragmentActivity() {
 **Why does this happen?**
 
 BiometricPrompt uses Fragment transactions internally to show the authentication dialog. This requires the host Activity to be a `FragmentActivity`. Using `ComponentActivity` or `AppCompatActivity` will result in a ClassCastException at runtime.
+
+---
+
+### Screenshots no se bloquean / la app aparece visible en el selector de apps recientes
+
+**Síntoma:** integraste el SDK, pero puedes hacer captura de pantalla en las
+pantallas de credenciales y la app no se oculta al pasar a segundo plano.
+
+**Causa:** estás usando `PasskeySignInScreen`/`PasskeyEnrollScreen` directamente
+dentro de tu propia Activity (**Modo B**, ver [§ Guía de Integración, Paso 4](#paso-4--elegir-modo-de-integración-de-ui)).
+`FLAG_SECURE` es un flag por-`Window`, y el SDK solo lo aplica a su propia
+`PasskeyAuthActivity` interna (usada por el Modo A — Launcher). No puede tocar
+la `Window` de una Activity que no controla.
+
+**Solución:** aplica `FLAG_SECURE` y el guard de tapjacking en tu propia
+Activity, exactamente como lo hace [`MainActivity.kt`](sample/src/main/java/es/fjmarlop/corpsecauth/sample/MainActivity.kt)
+del sample. Ver el código completo en [§ Guía de Integración, Paso 5](#paso-5--seguridad-del-host-flag_secure--anti-tapjacking).
 
 ---

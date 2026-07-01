@@ -237,17 +237,26 @@ PasskeyAuthConfig.Custom(
 
 ## 🚨 Contra Qué NO Protege PasskeyAuth
 
+> Desde ADR-015 (v0.3.0) el SDK **sí** incluye root/emulator/hooking detection,
+> anti-debug, y protección de screenshots/tapjacking — pero esta última **solo
+> cubre las pantallas propias del SDK** (`PasskeyAuthActivity` cuando usas el
+> launcher `PasskeyAuthContract`, o `PasskeySignInScreen`/`PasskeyEnrollScreen`
+> mientras se están dibujando). El resto de tu app es tu responsabilidad. Ver
+> [DEVELOPMENT.md § Guía de Integración, Paso 5](DEVELOPMENT.md#paso-5--seguridad-del-host-flag_secure--anti-tapjacking).
+
 ### Fuera del Alcance:
-- ❌ **Detección de Root/Jailbreak** (implementar por separado)
-- ❌ **Detección de Emulador** (implementar por separado)
-- ❌ **Grabación de Pantalla** (usar FLAG_SECURE)
-- ❌ **Protección de Screenshots** (usar flags de WindowManager)
-- ❌ **Seguridad de Red** (usar SSL pinning)
+- ❌ **Grabación de pantalla / Screenshots en TU Activity** — si usas los composables
+  del SDK embebidos en tu propia Activity (no el launcher), debes aplicar
+  `FLAG_SECURE` y el guard de tapjacking tú mismo, igual que hace `MainActivity.kt`
+  en el `sample`. `FLAG_SECURE` es un flag por-`Window`; el SDK no puede aplicarlo
+  a una Activity que no controla.
+- ❌ **Seguridad de Red más allá de TLS** (cert pinning — ver [DEVELOPMENT.md § Cert pinning para integradores](DEVELOPMENT.md#cert-pinning-para-integradores))
 - ❌ **Ingeniería Inversa** (usar ProGuard/R8)
 - ❌ **Ataques Físicos** (cifrado de dispositivo, secure boot)
 
 ### Responsabilidades del Cliente:
-- Implementar capas de seguridad adicionales según necesidad
+- `FLAG_SECURE` + anti-tapjacking en tus propias Activities si usas los composables directamente (Modo B, no aplica si usas el launcher)
+- Cert pinning si tu modelo de amenaza lo requiere
 - Seguir mejores prácticas de seguridad de Android
 - Realizar auditorías de seguridad
 - Monitorizar vulnerabilidades de seguridad
